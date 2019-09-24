@@ -23,49 +23,69 @@ Supported for Python 3.5+.
 
 3- Now we will make sure that PL\Python is working in postgres. To do so:
 		a- for convenience sake, add the postgreSQL directory to the path:
+				
 				sudo vim /etc/paths
-						click 'i' to go into insert mode
-						add '/Library/PostgreSQL/11/bin' to the first line
-						click 'Esc' and ':x' to save and quit 
-				re-run the terminal
-		b- ruSn  postgreSQL using the command:
+click 'i' to go into insert mode add '/Library/PostgreSQL/11/bin' to the first line then click 'Esc' and ':x' to save and quit 
+restart the terminal
+	
+b- run  postgreSQL using the command:
+				
 				psql -U postgres
-		c- from inside postgres:
+
+c- from inside postgres:
+				
 				CREATE EXTENSION plpython3u
-		d- if you see  "CREATE EXTENSION" that means it is working properly.
+
+d- if you see  "CREATE EXTENSION" that means it is working properly.
 
 
 ## Installing tspdb
 
-1- Download through: .. (I'll send it in an email for now)
+1- Download the package through cloning the reopsitory 
 
-2- Extract the package and from the terminal cd into the package directory
+	git clone https://github.com/AbdullahO/tspdb.git
+	
 
-3- run:		
+2-  cd into the package directory
+				
+				cd tspdb
+
+3- run pip for the python Postgres uses, if you downloaded Postgres the same way described above, use the follwoing command:		
+		
 		sudo /Library/edb/languagepack-11/Python-3.6/bin/pip install . 
 
+else, find the directory to the appropriate pip and run pip install . 
+
 4- run:
-		cd extension_py3
-		& 
-		sudo make install
+		
+		cd extension_py3 && sudo make install
+
+This step uses pg_config to find out where PostgreSQL stores its extension files, if you have another installation of Postgres, this might not work. If it does not, copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation
 
 5- run postgreSQL using the command:
+		
 		psql -U postgres
 
 6- create tspdb extension by running
+		
 		CREATE EXTENSION tspdb
 
 ## Testing tspdb
 
 1- test the package through running 
+
 		SELECT test_tspdb();
-	if you get at the last line 
+
+if you get at the last line 
+	
 	NOTICE:  Pindices successfully created
-	then tspdb should be working properly
+then tspdb should be working properly
 
 2- check the built pindices through
+		
 		SELECT * from list_pindices()
-	this shows you a list of the predictive indices built in the aforementioned test
+
+this shows you a list of the predictive indices built in the aforementioned test
 
 ## Example use cases
 ..... To be updated later .....
@@ -73,12 +93,12 @@ Supported for Python 3.5+.
 1- try to create another pindex: 
 				
 				select create_pindex('mixturets2','time','ts_7','pindex1');
-2- list 
+2- list pindices
+				
 				select * from list_pindices();
 
 3- insert and list
 
-				\d mixturets2
 				insert into mixturets2 values (100001, 27.0,27.0,27.0,27.0,1);
 				select * from list_pindices();
 
@@ -89,6 +109,7 @@ Supported for Python 3.5+.
 				select * from predict('mixturets2','ts_7',10,'pindex1', uq_method=> 'Chebyshev', c => 50);
 
 5- predict range
+				
 				select * from predic_range('mixturets2','ts_7',10,50,'pindex1', c => 90);
 
 6- to predict and compare prediction and means:
@@ -97,4 +118,4 @@ Supported for Python 3.5+.
 
 
 # Examples
-# Documenttion:
+# Documentaion:
