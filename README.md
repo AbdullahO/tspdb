@@ -24,17 +24,17 @@ Supported for Python 3.5+.
 3- Now we will make sure that PL\Python is working in postgres. To do so:
 		a- for convenience sake, add the postgreSQL directory to the path:
 				
-				sudo vim /etc/paths
+	sudo vim /etc/paths
 click 'i' to go into insert mode add '/Library/PostgreSQL/11/bin' to the first line then click 'Esc' and ':x' to save and quit 
 restart the terminal
 	
 b- run  postgreSQL using the command:
 				
-				psql -U postgres
+	psql -U postgres
 
 c- from inside postgres:
 				
-				CREATE EXTENSION plpython3u
+	CREATE EXTENSION plpython3u
 
 d- if you see  "CREATE EXTENSION" that means it is working properly.
 
@@ -48,27 +48,27 @@ d- if you see  "CREATE EXTENSION" that means it is working properly.
 
 2-  cd into the package directory
 				
-				cd tspdb
+	cd tspdb
 
 3- run pip for the python Postgres uses, if you downloaded Postgres the same way described above, use the follwoing command:		
 		
-		sudo /Library/edb/languagepack-11/Python-3.6/bin/pip install . 
+	sudo /Library/edb/languagepack-11/Python-3.6/bin/pip install . 
 
 else, find the directory to the appropriate pip and run pip install . 
 
 4- run:
 		
-		cd extension_py3 && sudo make install
+	cd extension_py3 && sudo make install
 
 This step uses pg_config to find out where PostgreSQL stores its extension files, if you have another installation of Postgres, this might not work. If it does not, copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation
 
 5- run postgreSQL using the command:
 		
-		psql -U postgres
+	psql -U postgres
 
 6- create tspdb extension by running
 		
-		CREATE EXTENSION tspdb
+	CREATE EXTENSION tspdb
 
 ## Testing tspdb
 
@@ -92,29 +92,31 @@ this shows you a list of the predictive indices built in the aforementioned test
 
 1- try to create another pindex: 
 				
-				select create_pindex('mixturets2','time','ts_7','pindex1');
+	select create_pindex('mixturets2','time','ts_7','pindex1');
 2- list pindices
 				
-				select * from list_pindices();
+	select * from list_pindices();
 
 3- insert and list
 
-				insert into mixturets2 values (100001, 27.0,27.0,27.0,27.0,1);
-				select * from list_pindices();
+	insert into mixturets2 values (100001, 27.0,27.0,27.0,27.0,1);
+	select * from list_pindices();
 
-4- predict with confidence interval and two methods
+4- predict with confidence interval and two methods for uncertainty quantification
 				
-				select * from predict('mixturets2','ts_7',10,'pindex1');
-				select * from predict('mixturets2','ts_7',10,'pindex1', uq_method=> 'Chebyshev');
-				select * from predict('mixturets2','ts_7',10,'pindex1', uq_method=> 'Chebyshev', c => 50);
+	select * from predict('mixturets2','ts_7',10,'pindex1');
+		
+	select * from predict('mixturets2','ts_7',10,'pindex1', uq_method=> 'Chebyshev');
+		
+	select * from predict('mixturets2','ts_7',10,'pindex1', uq_method=> 'Chebyshev', c => 50);
 
 5- predict range
 				
-				select * from predic_range('mixturets2','ts_7',10,50,'pindex1', c => 90);
+	select * from predic_range('mixturets2','ts_7',10,50,'pindex1', c => 90);
 
 6- to predict and compare prediction and means:
 
-				select time, ts_7, prediction, means from mixturets2  left join  predict('mixturets2','ts',time::int,'pindex1') on true where time > 1000 and time < 1100;
+	select time, ts_7, prediction, means from mixturets2  left join  predict('mixturets2','ts',time::int,'pindex1') on true where time > 1000 and time < 1100;
 
 
 # Examples
