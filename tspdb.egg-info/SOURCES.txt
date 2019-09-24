@@ -1,0 +1,8 @@
+setup.py
+tspdb/__init__.py
+tspdb.egg-info/PKG-INFO
+tspdb.egg-info/SOURCES.txt
+tspdb.egg-info/dependency_links.txt
+tspdb.egg-info/not-zip-safe
+tspdb.egg-info/requires.txt
+tspdb.egg-info/top_level.txt

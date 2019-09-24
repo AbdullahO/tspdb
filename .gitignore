@@ -1,0 +1,5 @@
+*.pyc
+*#
+*~
+**/tests_local
+**/experiments
