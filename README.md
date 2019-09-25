@@ -10,9 +10,9 @@ sklearn
 
 Supported for Python 3.5+.
 
-# Installation 
+# Installation (Mac OS)
 
-## Prerequisite (start from here, the later stages assume that you downloaded postgres this way):
+## Prerequisites (start from here, the later stages assume that you downloaded postgres this way):
 
 1- Install postgreSQL 11.5 from here: https://www.enterprisedb.com/thank-you-downloading-postgresql?anid=1256715
 
