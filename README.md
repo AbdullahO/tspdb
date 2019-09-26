@@ -3,13 +3,13 @@ Time Series Forecasting and Imputation implemedted on top of PostgreSQL
 
 This work has the following dependencies:
 
-numpy
+-numpy
 
-pandas
+-pandas
 
-scipy
+-scipy
 
-sklearn
+-sklearn
 
 Supported for Python 3.5+.
 
