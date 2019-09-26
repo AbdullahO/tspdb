@@ -4,8 +4,11 @@ Time Series Forecasting and Imputation implemedted on top of PostgreSQL
 This work has the following dependencies:
 
 numpy
+
 pandas
+
 scipy
+
 sklearn
 
 Supported for Python 3.5+.
