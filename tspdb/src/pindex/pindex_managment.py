@@ -340,7 +340,8 @@ class TSPI(object):
             self.db_interface.delete('tspdb.pindices', "index_name = '" + str(index_name) + "';")
             self.db_interface.delete('tspdb.pindices', "index_name = '" + str(index_name) + "';")
             self.db_interface.delete('tspdb.pindices_stats', "index_name = '" + str(index_name) + "';")
-
+            self.db_interface.delete('tspdb.pindices_columns', "index_name = '" + str(index_name) + "';")
+    
         # write mean and variance tables
         self.write_tsmm_model(self.ts_model, create)
         self.write_tsmm_model(self.var_model, create)
