@@ -1,4 +1,4 @@
-# tspdb - Time Series Predict DB
+# tspDB - Time Series Predict DB
 Time Series Forecasting and Imputation implemedted on top of PostgreSQL
 
 This work has the following dependencies:
