@@ -1,4 +1,4 @@
-# tspdb - Tim Series Predict DB
+# tspdb - Time Series Predict DB
 Time Series Forecasting and Imputation implemedted on top of PostgreSQL
 
 This work has the following dependencies:
@@ -10,9 +10,9 @@ sklearn
 
 Supported for Python 3.5+.
 
-# Installation (Mac OS)
+### Installation (Mac OS)
 
-## Prerequisites (start from here, the later stages assume that you downloaded postgres this way):
+#### Prerequisites (start from here, the later stages assume that you downloaded postgres this way):
 
 1- Install postgreSQL 11.5 from here: https://www.enterprisedb.com/thank-you-downloading-postgresql?anid=1256715
 
@@ -39,7 +39,7 @@ c- from inside postgres:
 d- if you see  "CREATE EXTENSION" that means it is working properly.
 
 
-## Installing tspdb
+#### Installing tspdb
 
 1- Download the package through cloning the reopsitory 
 
@@ -70,7 +70,7 @@ This step uses pg_config to find out where PostgreSQL stores its extension files
 		
 	CREATE EXTENSION tspdb
 
-## Testing tspdb
+#### Testing tspdb
 
 1- test the package through running 
 
@@ -87,7 +87,7 @@ then tspdb should be working properly
 
 this shows you a list of the predictive indices built in the aforementioned test
 
-## Example use cases
+### Example use cases
 ..... To be updated later .....
 
 1- try to create another pindex: 
