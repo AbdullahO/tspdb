@@ -569,9 +569,9 @@ class SqlImplementation(Interface):
         return self.engine.execute(query)
 
     def create_insert_trigger(self, table_name, index_name):
-        function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \  
-        try: plpy.execute("select update_pindex('%s');") \
-        except: plpy.notice('Index is not updated, insert is carried forward')
+        function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \n \
+        try: plpy.execute("select update_pindex('%s');") \n \
+        except: plpy.notice('Index is not updated, insert is carried forward') \n
         $$LANGUAGE plpython3u;'''
         self.engine.execute(function %(index_name, index_name))
         query = "CREATE TRIGGER tspdb_update_pindex_tg AFTER insert ON " + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from tspdb.src.database_module.db_class import Interface
-from tspdb.src.pindex.pindex_utils import index_ts_mapper
+from tspdb.src.pindex.pindex_utils import index_ts_mapper, index_ts_inv_mapper
 from scipy.stats import norm
 
 def get_prediction_range( index_name, table_name, value_column, index_col, interface, t1,t2 , uq = True, uq_method ='Gaussian', c = 95.):
@@ -504,4 +504,59 @@ def _get_imputation(index_name, table_name, value_column, index_col, interface, 
         
         # else return one value directly
         return sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])])
-        
+
+def forecast_next(index_name,table_name, value_column, index_col, interface, averaging = 'last1', ahead = 1):
+    """
+    Return the florcasted value in the past at the time range t1 to t2 for the value of column_name using index_name 
+    ----------
+    Parameters
+    ----------
+    index_name: string 
+        name of the PINDEX used to query the prediction
+
+    index_name: table_name 
+        name of the time series table in the database
+
+    value_column: string
+        name of column than contain time series value
+
+    index_col: string  
+        name of column that contains time series index/timestamp
+
+    interface: db_class object
+        object used to communicate with the DB. see ../database/db_class for the abstract class
+    
+    averaging: string, optional, (default 'average')
+        Coefficients used when forecasting, 'average' means use the average of all sub models coeffcients. 
+    ----------
+    Returns
+    ----------
+    prediction  array, shape [(t1 - t2 +1)  ]
+        forecasted value of the time series  in the range [t1,t2]  using index_name
+    """
+    # get coefficients
+    coeffs = np.array(interface.get_coeff(index_name + '_c_view', averaging))
+    no_coeff = len(coeffs)
+    # get parameters
+    end_index , agg_interval, start_ts = interface.query_table( index_name+'_meta',["last_TS_seen", 'agg_interval','start_time'])[0]
+    agg_interval = float(agg_interval)
+    if not isinstance(start_ts, (int, np.integer)):
+        start_ts = pd.Timestamp(start_ts)
+    
+    print(start_ts, agg_interval, end_index)
+    print(type(start_ts), type(agg_interval), type(end_index))
+    
+    end = index_ts_inv_mapper(start_ts, agg_interval, end_index)
+    start = index_ts_inv_mapper(start_ts, agg_interval, end_index-no_coeff )
+    print(start, end, agg_interval, end_index)
+    # the forecast should always start at the last point
+    obs = interface.get_time_series( table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
+    print(obs[-1], len(obs))
+    output = np.zeros([ahead+ no_coeff])
+    output[:no_coeff] = obs
+    for i in range(0, ahead):
+        output[i + no_coeff] = np.dot(coeffs.T, output[i:i + no_coeff])
+    return output[-ahead:]
+
+
+

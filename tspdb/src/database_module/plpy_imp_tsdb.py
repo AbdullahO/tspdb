@@ -104,7 +104,7 @@ class plpyimp(Interface):
                 else:
                     generate_series_sql = "with intervals as (select n as start_time,n+'"+interval_str+"'::interval as end_time from generate_series('%s'::timestamp, '%s'::timestamp,'"+interval_str+"'::interval) as n )" 
                     generate_series_sql = generate_series_sql % (start_ts_str,end.strftime('%Y-%m-%d %H:%M:%S'),)
-                    select_sql = "select "+agg_function+"(m."+value_column+") avg_val from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > '%s' and  f.start_time <= '%s' group by f.start_time, f.end_time order by f.start_time" 
+                    select_sql = "select "+agg_function+"(m."+value_column+") avg_val from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > '%s' and  f.start_time < '%s' group by f.start_time, f.end_time order by f.start_time" 
                     select_sql = select_sql%(start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S'),)
                 
                 
@@ -618,9 +618,9 @@ class plpyimp(Interface):
 
     def create_insert_trigger(self, table_name, index_name):
         
-        function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \  
-        try: plpy.execute("select update_pindex('%s');") \
-        except: plpy.notice('Index is not updated, insert is carried forward')
+        function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \n \
+        try: plpy.execute("select update_pindex('%s');") \n \
+        except: plpy.notice('Index is not updated, insert is carried forward') \n
         $$LANGUAGE plpython3u;'''
         self.engine.execute(function %(index_name, index_name))
         query = "CREATE TRIGGER tspdb_update_pindex_tg AFTER insert ON " + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "

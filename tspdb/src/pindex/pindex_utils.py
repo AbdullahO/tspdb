@@ -4,7 +4,7 @@ from dateutil.parser import parse
 
 def index_ts_mapper(start, interval, timestamp):
     """
-    gets time series index  (timestamp) and return the integer index in model
+    takes time series index  (timestamp) and return the integer index in model
     """
     if isinstance(start, (int, np.integer)):
         return int((timestamp-start)/(interval))
@@ -17,17 +17,14 @@ def index_ts_mapper(start, interval, timestamp):
 
 def index_ts_inv_mapper(start, interval, index):
     """
-    gets integer index in model  (index) and return the time series index
+    takes integer index in model  (index) and return the time series index
     """
     if isinstance(start, (int, np.integer)):
         return int((index *interval) + start)
-    
+
     elif  isinstance(start, (pd.Timestamp)):
-        with open( 'psql-output.txt', 'a' ) as o:
-            o.write(str(type(interval)))
-        
         return  pd.to_datetime(float(index*(interval*10**9)+start.tz_localize(None).value))
-    
+
     else:
         raise Exception('start value for the inv_mapper must either be integers or pd.timestamp')
 def index_exists(interface, index_name ):
