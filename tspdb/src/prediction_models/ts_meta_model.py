@@ -10,23 +10,28 @@ class TSMM(object):
     # gamma:                    (float) (0,1) fraction of T after which the model is updated
     # col_to_row_ratio:         (int) the ration of no. columns to the number of rows in each sub-model
 
-    def __init__(self, kSingularValuesToKeep=3, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=1.0, L=None, model_table_name=''):
+    def __init__(self, kSingularValuesToKeep=3, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=1.0, L=None, model_table_name='', persist_L = False):
         self.kSingularValuesToKeep = kSingularValuesToKeep
+        
         if L is None:
             self.L = int(np.sqrt(T / col_to_row_ratio))
             M = int(self.L * col_to_row_ratio)
             self.T = int(self.L * M)
             self.col_to_row_ratio = col_to_row_ratio
+      
         else:
+            
             self.L = L
             M = int(T/L)
             self.T = int(self.L*M)
-            self.col_to_row_ratio = int(M/L)
-        if self.T % 2 != 0:
-            self.L = self.L + 1
-            self.T = self.L ** 2 * col_to_row_ratio
-            print ('parameter T has to be selected to be even and the product of two integers, thus it is changed into ', self.T)
+            self.col_to_row_ratio = M/L
       
+        if M % 2 != 0:
+            M = M+ 1
+            self.T = self.L * M
+            print ('Number of columns has to be even, thus T is changed into ', self.T)
+        
+        self.persist_L = persist_L
         self.gamma = gamma
         self.models = {}
         self.T0 = T0
@@ -56,7 +61,7 @@ class TSMM(object):
         if len(self.models) == 1 and len(NewEntries) < self.T / 2:
             UpdateChunk = 20 * int(np.sqrt(self.T0))
         else:
-            UpdateChunk = int(self.T / (2 * self.col_to_row_ratio) * 0.85)
+            UpdateChunk = int(self.T / (2 * (1+self.col_to_row_ratio) * 0.85))
 
         # find if new models should be constructed
         N = len(NewEntries)
@@ -163,7 +168,8 @@ class TSMM(object):
                 initEntries = self.TimeSeries[:]
                 start = max(self.TimeSeriesIndex - self.T, 0)
 
-            N = int(np.sqrt(len(initEntries) / (self.col_to_row_ratio)))
+            if self.persist_L: N = self.L
+            else: N = int(np.sqrt(len(initEntries) / (self.col_to_row_ratio)))
             M = int(len(initEntries) / N)
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start=int(start), SSVT=self.SSVT,
                                                probObservation=self.p)
@@ -182,7 +188,8 @@ class TSMM(object):
                         self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to create new model
 
             TSlength = self.TimeSeriesIndex - Model.start
-            N = int(np.sqrt(int(TSlength/self.col_to_row_ratio)))
+            if self.persist_L: N = self.L
+            else: N = int(np.sqrt(TSlength/self.col_to_row_ratio))
             M = int(TSlength / N)
             TSeries = self.TimeSeries[-TSlength:]
             TSeries = TSeries[:N * M]

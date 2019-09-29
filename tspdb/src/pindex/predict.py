@@ -362,7 +362,7 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
         return Result[tsrow1:end]
 
 
-def _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1, t2,MUpdateIndex,L,k,T,last_model, averaging = 'average'):
+def _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1, t2,MUpdateIndex,L,k,T,last_model, averaging = 'last1'):
     """
     Return the florcasted value in the past at the time range t1 to t2 for the value of column_name using index_name 
     ----------

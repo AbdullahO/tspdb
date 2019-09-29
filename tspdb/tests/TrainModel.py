@@ -9,12 +9,12 @@ from time import clock
 import pandas as pd
 
 T0 = 1000
-T = 2500000
+T = 30000
 gamma = 0.5
 k = 2
 time_series_table = ['mixturets2','ts','time']
 TSPD = TSPI(T = T, rank = k, interface= SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",
-               user="postgres",password="0505") ,time_series_table = time_series_table, recreate = True)
+               user="postgres",password="0505") ,time_series_table = time_series_table)
 TSPD.create_index()
 df = pd.DataFrame(data= {'ts': np.arange(10**6)})
 TSPD.db_interface.create_table('ts_basic2', df, include_index = True)

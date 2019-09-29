@@ -385,7 +385,7 @@ class plpyimp(Interface):
             queried coefficients for the selected average
         """
                 
-        query = "SELECT %s from %s order by %s" %(column , table_name, 'coeffpos')
+        query = "SELECT %s from %s order by %s Desc" %(column , table_name, 'coeffpos')
         result = self.engine.execute(query)
         result = [row[column] for row in result]
         return np.array(result)
@@ -601,7 +601,10 @@ class plpyimp(Interface):
 
     def create_insert_trigger(self, table_name, index_name):
         
-        function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$   plpy.execute("select update_pindex('%s');") $$LANGUAGE plpython3u;'''
+        function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \  
+        try: plpy.execute("select update_pindex('%s');") \
+        except: plpy.notice('Index is not updated, insert is carried forward')
+        $$LANGUAGE plpython3u;'''
         self.engine.execute(function %(index_name, index_name))
         query = "CREATE TRIGGER tspdb_update_pindex_tg AFTER insert ON " + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "
         self.engine.execute(query)

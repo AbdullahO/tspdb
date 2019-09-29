@@ -77,10 +77,10 @@ def load_pindex(db_interface, index_name, _dir=''):
     meta_inf = db_interface.query_table(meta_table,
                                         columns_queried=['T', 'T0', 'k', 'gamma', 'var_direct_method', 'k_var', 'T_var',
                                                          'soft_thresholding', 'start_time', 'aggregation_method',
-                                                         'agg_interval', 'time_series_table_name', 'indexed_column',
+                                                         'agg_interval', 'persist_l', 'time_series_table_name', 'indexed_column',
                                                          'time_column'])
 
-    T, T0, k, gamma, direct_var, k_var, T_var, SSVT, start_time, aggregation_method, agg_interval = meta_inf[0][:-3]
+    T, T0, k, gamma, direct_var, k_var, T_var, SSVT, start_time, aggregation_method, agg_interval, persist_l = meta_inf[0][:-3]
 
     # ------------------------------------------------------
     # temp fix
@@ -93,7 +93,7 @@ def load_pindex(db_interface, index_name, _dir=''):
     time_series_table = meta_inf[0][-3:]
     TSPD = TSPI(interface=db_interface, index_name=index_name, schema=None, T=T, T0=T0, rank=k, gamma=gamma,
                 direct_var=direct_var, rank_var=k_var, T_var=T_var, SSVT=SSVT, start_time=start_time,
-                aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table=time_series_table)
+                aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table=time_series_table, persist_L = persist_l)
 
     # load meta for specific models
 
@@ -104,7 +104,7 @@ def load_pindex(db_interface, index_name, _dir=''):
                                                               'last_TS_inc',
                                                               'last_TS_seen'])[0]
     TSPD.ts_model = TSMM(TSPD.k, TSPD.T, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
-                         model_table_name=index_name, SSVT=TSPD.SSVT, L=L)
+                         model_table_name=index_name, SSVT=TSPD.SSVT, L=L, persist_L = TSPD.persist_L)
     TSPD.ts_model.ReconIndex, TSPD.ts_model.MUpdateIndex, TSPD.ts_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
 
     # load variance models if any
@@ -119,7 +119,7 @@ def load_pindex(db_interface, index_name, _dir=''):
             0]
 
         TSPD.var_model = TSMM(TSPD.k_var, TSPD.T_var, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
-                              model_table_name=index_name + "_variance", SSVT=TSPD.SSVT, L=L, )
+                              model_table_name=index_name + "_variance", SSVT=TSPD.SSVT, L=L, persist_L =TSPD.persist_L)
         TSPD.var_model.ReconIndex, TSPD.var_model.MUpdateIndex, TSPD.var_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
 
     # query models table
@@ -189,21 +189,29 @@ class TSPI(object):
 
     def __init__(self, rank=3, rank_var=1, T=int(1e5), T_var=None, gamma=0.2, T0=1000, col_to_row_ratio=10,
                  interface=Interface, agg_interval=1., start_time=None, aggregation_method='average',
-                 time_series_table=["", "", ""], SSVT=False, p=1.0, direct_var=True, L=None, recreate=True,
-                 index_name=None, _dir='', schema='tspdb'):
+                 time_series_table=["", "", ""], SSVT=False, p=1.0, direct_var=True, L=None,  recreate=True,
+                 index_name=None, _dir='', schema='tspdb', persist_L = None):
         self._dir = _dir
         self.index_ts = False
-
-
         self.db_interface = interface
         self.time_series_table = time_series_table
         self.k = rank
         self.T = int(T)
         self.SSVT = SSVT
+        
         if T_var is None:
             self.T_var = self.T
         else:
             self.T_var = T_var
+
+        self.persist_L = persist_L
+        
+        if self.persist_L is None:       
+            
+            self.persist_L = False
+            if L is not None:
+                self.persist_L = True
+     
 
         self.gamma = gamma
         self.T0 = T0
@@ -229,10 +237,10 @@ class TSPI(object):
             self.agg_interval = 1.
 
         self.ts_model = TSMM(self.k, self.T, self.gamma, self.T0, col_to_row_ratio=col_to_row_ratio,
-                             model_table_name=self.index_name, SSVT=self.SSVT, p=p, L=L)
+                             model_table_name=self.index_name, SSVT=self.SSVT, p=p, L=L, persist_L = self.persist_L)
         self.var_model = TSMM(self.k_var, self.T_var, self.gamma, self.T0, col_to_row_ratio=col_to_row_ratio,
                               model_table_name=self.index_name + "_variance", SSVT=self.SSVT, p=p,
-                              L=L)
+                              L=L, persist_L = self.persist_L)
         self.direct_var = direct_var
 
         if self.k_var:
@@ -367,7 +375,7 @@ class TSPI(object):
                   'last_TS_inc_var': [self.var_model.MUpdateIndex], 'aggregation_method': [self.aggregation_method],
                   'agg_interval': [self.agg_interval],
                   'start_time': [self.start_time], 'last_TS_fullSVD_var': [self.var_model.ReconIndex],
-                  'var_direct_method': [self.direct_var]})
+                  'var_direct_method': [self.direct_var], 'persist_l': [self.persist_L]})
         
         # ------------------------------------------------------
         # EDIT: Due to some incompatibiliy with PSQL timestamp types 
@@ -515,13 +523,19 @@ class TSPI(object):
         id_c = 0
         w_f = N - 1
         w_l = len(models[last_model].weights)
-        c_table = np.zeros([(len(models) - 1) * w_f + w_l, 3])
+        c_table = np.zeros([(len(models)) * w_f, 3])
         for i, m in models.items():
             coeNu = 0
-            for weig in m.weights:
+            for weig in m.weights[::-1]:
                 c_table[id_c, :] = [i, coeNu, weig]
                 id_c += 1
                 coeNu += 1
+            if i == last_model:
+                for q in range(w_f-w_l):
+                    c_table[id_c, :] = [i, coeNu, 0]
+                    id_c += 1
+                    coeNu += 1
+
 
         cdf = pd.DataFrame(columns=['modelno', 'coeffpos', 'coeffvalue'], data=c_table)
         cdf.index = np.arange(first_model * w_f, first_model * w_f + len(c_table))
@@ -552,12 +566,12 @@ class TSPI(object):
             self.db_interface.create_index(tableNames[2], 'modelno')
             self.db_interface.create_index(tableNames[3], 'modelno')
             self.db_interface.create_index(tableNames[3], 'coeffpos')
-            self.db_interface.create_coefficients_average_table(tableNames[3], tableNames[3] + '_view', [10, 20, 100],
+            self.db_interface.create_coefficients_average_table(tableNames[3], tableNames[3] + '_view', [1,2,10, 20, 100],
                                                                 last_model)
             self.db_interface.create_index(tableNames[3] + '_view', 'coeffpos')
         else:
             last_model = len(tsmm.models) - 1
-            self.db_interface.create_coefficients_average_table(tableNames[3], tableNames[3] + '_view', [10, 20, 100],
+            self.db_interface.create_coefficients_average_table(tableNames[3], tableNames[3] + '_view', [1,2,10, 20, 100],
                                                                 last_model, refresh=True)
 
     def _load_models_from_db(self, tsmm):

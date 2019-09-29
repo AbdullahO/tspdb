@@ -143,6 +143,7 @@ class SVDModel(object):
             # min = np.nanmin(keyToSeriesDF)
             # diff = 0.5*(min + max)
             keyToSeriesDF = keyToSeriesDF.fillna(method = 'ffill')
+            keyToSeriesDF = keyToSeriesDF.fillna(method = 'bfill')
         else:
             keyToSeriesDF = keyToSeriesDF.fillna(value = 0)
         T = self.N * self.M
@@ -178,17 +179,16 @@ class SVDModel(object):
     def fit(self, keyToSeriesDF):
 
         # assign data to class variables
-        obs = keyToSeriesDF[self.seriesToPredictKey].values
-        filter_nan = ~np.isnan(obs)
-        obs = obs[filter_nan]
+
         self._assignData(keyToSeriesDF, missingValueFill=True)
+        obs = self.matrix.flatten('F')
         # now produce a thresholdedthresholded/de-noised matrix. this will over-write the original data matrix
         svdMod = SVD(self.matrix, method='numpy')
         (self.sk, self.Uk, self.Vk) = svdMod.reconstructMatrix(self.kSingularValues, returnMatrix=False)
         if self.SSVT: self.soft_threshold = svdMod.next_sigma
         # set weights
         self.matrix = tsUtils.matrixFromSVD(self.sk, self.Uk, self.Vk, self.soft_threshold,probability=self.p)
-        self.imputation_model_score = r2_score(obs,self.denoisedTS()[filter_nan])
+        self.imputation_model_score = r2_score(obs,self.denoisedTS())
         self._computeWeights()
 
     def updateSVD(self,D, method = 'UP', missingValueFill = True):
