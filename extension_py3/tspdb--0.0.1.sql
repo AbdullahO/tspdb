@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS tspdb.pindices_stats (
 
 
 
-CREATE or REPLACE FUNCTION create_pindex (table_name text, ts_column text, value_column text, index_name text, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT 3 , k_var int DEFAULT 1, "T" int DEFAULT 2500000, "T0" int DEFAULT 1000,var_direct boolean DEFAULT true,gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 10, agg_interval numeric DEFAULT 1.0)
+CREATE or REPLACE FUNCTION create_pindex (table_name text, ts_column text, value_column text, index_name text, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT 3 , k_var int DEFAULT 1, "T" int DEFAULT 2500000, "T0" int DEFAULT 1000,var_direct boolean DEFAULT true,gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 10, agg_interval numeric DEFAULT 1.0, "L" int DEFAULT 0 )
 RETURNS void AS $$
 from tspdb.src.pindex.predict import get_prediction_range, get_prediction
 from tspdb.src.pindex.pindex_managment import TSPI, load_pindex
@@ -41,17 +41,18 @@ else:
     from tspdb.src.database_module.plpy_imp import plpyimp
 #check if table is ts and columns are of appropriate type 
 pass
-
 # Build index 
 time_series_table = [table_name,value_column,ts_column]
-
-TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, col_to_row_ratio = col_to_row_ratio, interface= plpyimp(plpy) ,time_series_table = time_series_table, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval)
+if L == 0:
+  TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, col_to_row_ratio = col_to_row_ratio, interface= plpyimp(plpy) ,time_series_table = time_series_table, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval)
+else:
+  TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, L = L, interface= plpyimp(plpy) ,time_series_table = time_series_table, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval)
 TSPD.create_index()
 
 
 $$ LANGUAGE plpython3u;
 
-CREATE or REPLACE FUNCTION predict (table_name text, value_column text, t int,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,  OUT prediction numeric, OUT LB numeric,OUT UB numeric)
+CREATE or REPLACE FUNCTION predict (table_name text, value_column text, t int,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95, projected boolean DEFAULT false,  OUT prediction numeric, OUT LB numeric,OUT UB numeric)
 AS $$
 
 from tspdb.src.pindex.predict import get_prediction
@@ -61,14 +62,14 @@ from tspdb.src.database_module.plpy_imp import plpyimp
 # get 
 index_name_ = 'tspdb.'+index_name
 if not uq:
-  prediction = get_prediction( index_name_, table_name, value_column, '', plpyimp(plpy), t, uq)
+  prediction = get_prediction( index_name_, table_name, value_column, plpyimp(plpy), t, uq, projected = projected)
   return prediction, 0,0
 else: 
-  prediction,interval = get_prediction( index_name_, table_name, value_column, '', plpyimp(plpy), t, uq, uq_method = uq_method, c = c)
+  prediction,interval = get_prediction( index_name_, table_name, value_column,  plpyimp(plpy), t, uq, projected = projected, uq_method = uq_method, c = c)
   return prediction, prediction-interval, prediction+ interval
 $$ LANGUAGE plpython3u;
 
-CREATE or REPLACE FUNCTION predict (table_name text, value_column text, t timestamp,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,  OUT prediction numeric, OUT LB numeric,OUT UB numeric)
+CREATE or REPLACE FUNCTION predict (table_name text, value_column text, t timestamp,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,projected boolean DEFAULT false,  OUT prediction numeric, OUT LB numeric,OUT UB numeric)
 AS $$
 
 from tspdb.src.pindex.predict import get_prediction
@@ -78,14 +79,14 @@ from tspdb.src.database_module.plpy_imp import plpyimp
 # get 
 index_name_ = 'tspdb.'+index_name
 if not uq:
-  prediction = get_prediction( index_name_, table_name, value_column, '', plpyimp(plpy), t, uq)
+  prediction = get_prediction( index_name_, table_name, value_column, plpyimp(plpy), t, uq, projected = projected)
   return prediction, 0,0
 else: 
-  prediction,interval = get_prediction( index_name_, table_name, value_column, '', plpyimp(plpy), t, uq, uq_method = uq_method, c = c)
+  prediction,interval = get_prediction( index_name_, table_name, value_column, plpyimp(plpy), t, uq, projected = projected, uq_method = uq_method, c = c)
   return prediction, prediction-interval, prediction+ interval
 $$ LANGUAGE plpython3u;
 
-CREATE or REPLACE FUNCTION predict_range (table_name text, value_column text,  t1 int, t2 int,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95, OUT prediction numeric, OUT LB numeric,OUT UB numeric)
+CREATE or REPLACE FUNCTION predict_range (table_name text, value_column text,  t1 int, t2 int,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95, projected boolean DEFAULT false,OUT prediction numeric, OUT LB numeric,OUT UB numeric)
 RETURNS SETOF record AS $$
 from tspdb.src.pindex.predict import get_prediction_range
 from tspdb.src.database_module.plpy_imp import plpyimp
@@ -94,14 +95,14 @@ from tspdb.src.database_module.plpy_imp import plpyimp
 index_name_ = 'tspdb.'+index_name
 # get 
 if not uq:
-  prediction = get_prediction_range( index_name_, table_name, value_column, '', plpyimp(plpy), t1,t2, uq)
+  prediction = get_prediction_range( index_name_, table_name, value_column, plpyimp(plpy), t1,t2, uq, projected = projected)
   return zip(prediction, prediction,prediction)
 else: 
-  prediction,interval = get_prediction_range( index_name_, table_name, value_column, '', plpyimp(plpy), t1,t2,uq, uq_method = uq_method, c = c)
+  prediction,interval = get_prediction_range( index_name_, table_name, value_column, plpyimp(plpy), t1,t2,uq, projected = projected, uq_method = uq_method, c = c)
   return zip(prediction, prediction-interval, prediction+ interval)
 $$ LANGUAGE plpython3u;
 
-CREATE or REPLACE FUNCTION predict_range (table_name text, value_column text,  t1 timestamp, t2 timestamp,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95, OUT prediction numeric, OUT LB numeric,OUT UB numeric)
+CREATE or REPLACE FUNCTION predict_range (table_name text, value_column text,  t1 timestamp, t2 timestamp,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,projected boolean DEFAULT false, OUT prediction numeric, OUT LB numeric,OUT UB numeric)
 RETURNS SETOF record AS $$
 from tspdb.src.pindex.predict import get_prediction_range
 from tspdb.src.database_module.plpy_imp import plpyimp
@@ -110,12 +111,24 @@ from tspdb.src.database_module.plpy_imp import plpyimp
 index_name_ = 'tspdb.'+index_name
 # get 
 if not uq:
-  prediction = get_prediction_range( index_name_, table_name, value_column, '', plpyimp(plpy), t1,t2, uq)
+  prediction = get_prediction_range( index_name_, table_name, value_column, plpyimp(plpy), t1,t2, uq,projected = projected)
   return zip(prediction, prediction,prediction)
 else: 
-  prediction,interval = get_prediction_range( index_name_, table_name, value_column, '', plpyimp(plpy), t1,t2,uq, uq_method = uq_method, c = c)
+  prediction,interval = get_prediction_range( index_name_, table_name, value_column,  plpyimp(plpy), t1,t2,uq, uq_method = uq_method, c = c,projected = projected)
   return zip(prediction, prediction-interval, prediction+ interval)
 $$ LANGUAGE plpython3u;
+
+CREATE or REPLACE FUNCTION forecast_next (table_name text, value_column text, time_column text ,  index_name text, ahead int DEFAULT 1,  averaging text DEFAULT 'average', uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95)
+RETURNS setof numeric AS $$
+from tspdb.src.database_module.plpy_imp import plpyimp
+from tspdb.src.pindex.predict import forecast_next
+
+#check if index exist or if there exist index that is implemented for column 
+index_name_ = 'tspdb.'+index_name
+a = forecast_next(index_name_,table_name, value_column, time_column, plpyimp(plpy), ahead = ahead,  averaging = averaging)
+return a
+$$ LANGUAGE plpython3u;
+
 
 
 CREATE or REPLACE FUNCTION update_pindex(index_name text)
