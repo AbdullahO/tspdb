@@ -22,7 +22,10 @@ TSPD.update_model(np.arange(1,10**7+1))
 TSPD.write_model()
 
 
-
+CREATE or REPLACE FUNCTION test() RETURNS void  AS $$   
+try: 1+1 
+except: print(1) 
+$$LANGUAGE plpython3u
 
 # print 'Done creating index ..'
 # model = TSPD.ts_model

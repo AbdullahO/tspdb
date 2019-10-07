@@ -55,7 +55,7 @@ def create_table_data():
 	df.to_csv('testdata/tables/MixtureTS.csv', index_label = 'time')
 	
 	# real time series varaince harmonics
-	data = read_data('testdata/MixtureTS_var.h5')
+	data = read_data('testdata/MixtureTS_var_test.h5')
 	obs = data['obs'][:]
 	means = data['means'][:]
 	var = data['var'][:]
@@ -65,16 +65,15 @@ def create_table_data():
 	df.to_csv('testdata/tables/MixtureTS_var.csv', index_label = 'time')
 	
 def create_tables():
-	interface = SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",user="aalomar",password="AAmit32lids")
-		
-	for table in ['ts_basic_5','ts_basic_ts_5_5','mixturets2','mixturets','mixturets_var']:
-		df = pd.read_csv('testdata/tables/%s.csv'%table) 
+	interface = SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",user="postgres",password="0505")
+	for table in ['ts_basic_5','ts_basic_ts_5_5','mixturets2','mixturets_var']:
+		df = pd.read_csv('tspdb/tests/testdata/tables/%s.csv'%table) 
 		if table == 'ts_basic_ts_5_5': df['time'] = df['time'].astype('datetime64[ns]')
 		interface.create_table(table, df, 'time', include_index = False)
 	
 
 def update_test(init_points = 10**4 , update_points = [1000,100,5000,10000], T = 1000, direct_var = True ,index_name = 'ts_basic_test_pindex'):
-	interface = SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",user="aalomar",password="AAmit32lids")
+	interface = SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",user="postgres",password="0505")
 	df = pd.DataFrame(data ={'ts': np.arange(init_points).astype('float')}) 
 	interface.create_table('ts_basic_test', df, 'row_id', index_label='row_id')
 	time_series_table = ['ts_basic_test','ts', 'row_id']

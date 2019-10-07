@@ -7,55 +7,37 @@ from tspdb.src.hdf_util import write_data
 import matplotlib.pyplot as plt
 
 def armaDataTest(timeSteps):
-
     arLags = []#[0.4, 0.3, 0.2]
     maLags = []#[0.5, 0.1]
-
     startingArray = np.zeros(np.max([len(arLags), len(maLags)])) # start with all 0's
     noiseMean = 0.0
     noiseSD = [1.0]
-
     (observedArray, meanArray, errorArray) = gA.generate(arLags, maLags, startingArray, timeSteps, noiseMean, noiseSD)
-
     return (observedArray, meanArray)
 
 def trendDataTest(timeSteps):
-
     dampening = 2.0*float(1.0/timeSteps)
     power = 0.35
     displacement = -2.5
-
     f1 = gT.linearTrendFn
     data = gT.generate(f1, power=power, displacement=displacement, timeSteps=timeSteps)
-
     f2 = gT.logTrendFn
-    # data += gT.generate(f2, dampening=dampening, displacement=displacement, timeSteps=timeSteps)
-
     f3 = gT.negExpTrendFn
-    # data += gT.generate(f3, dampening=dampening, displacement=displacement, timeSteps=timeSteps)
-
-    #plt.plot(t2)
-    #plt.show()
-
     return data
 
 
 def harmonicDataTest(timeSteps):
-
     sineCoeffs = [-2.0, 3.0]
     sinePeriods = [26.0, 30.0]
-
     cosineCoeffs = [-2.5]
     cosinePeriods = [16.0]
-
     data = gH.generate(sineCoeffs, sinePeriods, cosineCoeffs, cosinePeriods, timeSteps)
     #plt.plot(data)
     #plt.show()
-
     return data
 
 
-timeSteps = 10**5 +1
+timeSteps = 10**5 +10000
 
 
 
@@ -87,9 +69,9 @@ plt.plot(var, label = 'var')
 plt.show()
 print('Data Generated in ', clock() - dt)
 
-write_data('MixtureTS_var.h5', 'means', meanTS)
-write_data('MixtureTS_var.h5', 'obs', combinedTS,'a')
-write_data('MixtureTS_var.h5', 'var', var,'a')
+write_data('MixtureTS_var2.h5', 'means', meanTS)
+write_data('MixtureTS_var2.h5', 'obs', combinedTS,'a')
+write_data('MixtureTS_var2.h5', 'var', var,'a')
 # DF = pd.DataFrame()
 # DF['means'] = meanTS
 # DF['Obs'] =  combinedTS
