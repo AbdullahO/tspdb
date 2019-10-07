@@ -4,7 +4,7 @@ from tspdb.src.database_module.db_class import Interface
 from tspdb.src.pindex.pindex_utils import index_ts_mapper, index_ts_inv_mapper
 from scipy.stats import norm
 
-def get_prediction_range( index_name, table_name, value_column, index_col, interface, t1,t2 , uq = True, uq_method ='Gaussian', c = 95.):
+def get_prediction_range( index_name, table_name, value_column, interface, t1,t2 , uq = True, uq_method ='Gaussian', c = 95., projected = False):
 
     """
     Return an array of N (N = t2-t1+1) predicted value along with the confidence interval for the value of column_name  at time t1 to t2  
@@ -20,9 +20,6 @@ def get_prediction_range( index_name, table_name, value_column, index_col, inter
 
     value_column: string
         name of column than contain time series value
-
-    index_col: string  
-        name of column that contains time series index/timestamp
 
     interface: db_class object
         object used to communicate with the DB. see ../database/db_class for the abstract class
@@ -51,7 +48,7 @@ def get_prediction_range( index_name, table_name, value_column, index_col, inter
         The deviation from the mean to get the desired confidence level 
     """
     # query pindex parameters
-    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time'])[0]
+    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column"])[0]
     last_model -= 1
     
     if not isinstance(t1, (int, np.integer)):
@@ -78,11 +75,11 @@ def get_prediction_range( index_name, table_name, value_column, index_col, inter
             
     # if all points are in the future, use _get_forecast_range 
     if t1 > (MUpdateIndex - 1):
-        if not uq: return _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1,t2, MUpdateIndex,L,k,T,last_model)
+        if not uq: return _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1,t2, MUpdateIndex,L,k,T,last_model,interval, start_ts, last_TS_seen, projected = projected)
         
         else:
-            prediction = _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1,t2, MUpdateIndex,L,k,T,last_model)
-            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface, t1,t2, MUpdateIndex, L,k_var,T_var,last_model)
+            prediction = _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1,t2, MUpdateIndex,L,k,T,last_model,interval, start_ts, last_TS_seen, projected = projected)
+            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface, t1,t2, MUpdateIndex, L,k_var,T_var,last_model,interval, start_ts, last_TS_seen_var, variance = True, direct_var =var_direct,  projected = projected)
             # if the second model is used for the second moment, subtract the squared mean to estimate the variance
             if not var_direct:
                 var = var - (prediction)**2
@@ -105,12 +102,12 @@ def get_prediction_range( index_name, table_name, value_column, index_col, inter
     # if points are in both the future and in the past, use both        
     else:
         imputations = _get_imputation_range(index_name, table_name, value_column, index_col, interface, t1,MUpdateIndex-1,L,k,T,last_model)
-        forecast = _get_forecast_range(index_name,table_name, value_column, index_col, interface,MUpdateIndex ,t2, MUpdateIndex,L,k,T,last_model)
+        forecast = _get_forecast_range(index_name,table_name, value_column, index_col, interface,MUpdateIndex ,t2, MUpdateIndex,L,k,T,last_model,interval, start_ts,last_TS_seen, projected = projected)
         if not uq: return list(imputations)+list(forecast)
         
         else:
             imputations_var = _get_imputation_range(index_name+'_variance', table_name, value_column, index_col, interface, t1,MUpdateIndex-1,L_var,k_var,T_var,last_model)
-            forecast_var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,MUpdateIndex ,t2, MUpdateIndex,L_var,k_var,T_var,last_model)
+            forecast_var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,MUpdateIndex ,t2, MUpdateIndex,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen, variance = True, direct_var =var_direct,projected = projected)
             if not var_direct:
                 forecast_var = forecast_var - (forecast)**2
                 imputations_var = imputations_var - (imputations)**2
@@ -122,7 +119,7 @@ def get_prediction_range( index_name, table_name, value_column, index_col, inter
             
 
 
-def get_prediction(index_name, table_name, value_column, index_col, interface, t, uq = True, uq_method ='Gaussian', c = 95):
+def get_prediction(index_name, table_name, value_column, interface, t, uq = True, uq_method ='Gaussian', c = 95, projected = False):
     """
     Return the predicted value along with the confidence interval for the value of column_name  at time t  using index_name 
     by calling either get_forecast or get_imputation function 
@@ -137,9 +134,6 @@ def get_prediction(index_name, table_name, value_column, index_col, interface, t
 
     value_column: string
         name of column than contain time series value
-
-    index_col: string  
-        name of column that contains time series index/timestamp
 
     interface: db_class object
         object used to communicate with the DB. see ../database/db_class for the abstract class
@@ -167,7 +161,7 @@ def get_prediction(index_name, table_name, value_column, index_col, interface, t
     """
     # query pindex parameters
 
-    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time'])[0]
+    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column"])[0]
     last_model -= 1
     
     if not isinstance(t, (int, np.integer)):
@@ -187,10 +181,10 @@ def get_prediction(index_name, table_name, value_column, index_col, interface, t
             raise Exception('uq_method option is not recognized,  available options are: "Gaussian" or "Chebyshev"')
 
     if t > (MUpdateIndex - 1):
-        if not uq: return _get_forecast_range(index_name,table_name, value_column, index_col, interface,t, t, MUpdateIndex,L,k,T,last_model)[-1]
+        if not uq: return _get_forecast_range(index_name,table_name, value_column, index_col, interface,t, t, MUpdateIndex,L,k,T,last_model, interval, start_ts, last_TS_seen, projected = projected)[-1]
         else:
-            prediction = _get_forecast_range(index_name,table_name, value_column, index_col, interface,t, t, MUpdateIndex,L,k,T,last_model)[-1]
-            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,t, t, MUpdateIndex,L_var,k_var,T_var,last_model)[-1]
+            prediction = _get_forecast_range(index_name,table_name, value_column, index_col, interface,t, t, MUpdateIndex,L,k,T,last_model, interval, start_ts,last_TS_seen,  projected = projected)[-1]
+            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,t, t, MUpdateIndex,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen_var,  projected = projected, variance = True, direct_var =var_direct)[-1]
             
             if not var_direct:
                 var = var - (prediction)**2
@@ -362,9 +356,9 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
         return Result[tsrow1:end]
 
 
-def _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1, t2,MUpdateIndex,L,k,T,last_model, averaging = 'last1'):
+def _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1, t2,MUpdateIndex,L,k,T,last_model, interval, start_ts, last_TS_seen,direct_var = False,variance = False,averaging = 'last1', projected = False):
     """
-    Return the florcasted value in the past at the time range t1 to t2 for the value of column_name using index_name 
+    Return the forecasted value in the past at the time range t1 to t2 for the value of column_name using index_name 
     ----------
     Parameters
     ----------
@@ -395,10 +389,10 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
     k: (int )
         Model parameter determining the number of retained singular values in each matrix in a sub model. 
     
-    T: (int or timestamp)
+    T: (int )
         Model parameter determining the number of datapoints in each matrix in a sub model.
     
-    last_model: (int or timestamp)
+    last_model: (int )
         The index of the last sub model
 
     averaging: string, optional, (default 'average')
@@ -410,9 +404,56 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
         forecasted value of the time series  in the range [t1,t2]  using index_name
     """
     # get coefficients
+
     coeffs = np.array(interface.get_coeff(index_name + '_c_view', averaging))
     no_coeff = len(coeffs)
+    if projected and (not direct_var or not variance):
     
+            if last_model != 0:
+                q_model = last_model- 1
+            else:
+                q_model = last_model
+            U = interface.get_U_row(index_name + '_u', [0, 2 * L], [q_model, q_model], k,
+                                         return_modelno=False)[:-1,:]
+            no_coeff = U.shape[0]
+
+            coeffs = coeffs[-no_coeff:]
+            agg_interval = float(interval)
+            
+            if not isinstance(start_ts, (int, np.integer)):
+                start_ts = pd.Timestamp(start_ts)
+            t1_ = min(t1, last_TS_seen)
+            t2_ = min(t2, last_TS_seen)
+
+            end = index_ts_inv_mapper(start_ts, agg_interval, t2_ - 1 )
+            start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff  )
+            
+            obs = interface.get_time_series(table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
+            projection_matrix = np.dot(U,U.T)
+            output = np.zeros([t2 - t1_ + 1 ])
+            
+            obs = np.array(obs)[:,0]
+            print(obs)
+            obs = np.array(pd.DataFrame(obs).fillna(method = 'ffill').values[:,0])
+            obs = np.array(pd.DataFrame(obs).fillna(method = 'bfill').values[:,0])
+            print(obs)
+            
+            if variance:
+                obs = obs **2
+            
+            observations = np.zeros([t2 - t1_ + 1 + no_coeff])
+            observations[:len(obs)] = obs
+            
+            for i in range(0, t2 + 1 - t1_): 
+                    if i  < len(obs):
+                        output[i] = np.dot(coeffs.T, np.dot(projection_matrix, observations[i:i + no_coeff]))
+                    else:
+                        output[i] = np.dot(coeffs.T,  observations[i:i + no_coeff])
+                    if i+no_coeff >= len(obs):
+                        observations[i+no_coeff] = output[i]
+            print(observations[no_coeff:])
+            return output[-(t2 - t1 + 1):]
+            
     # the forecast should always start at the last point
     t1_ = MUpdateIndex 
     output = np.zeros([t2 - t1_ + 1 + no_coeff])
@@ -540,20 +581,16 @@ def forecast_next(index_name,table_name, value_column, index_col, interface, ave
     # get parameters
     end_index , agg_interval, start_ts = interface.query_table( index_name+'_meta',["last_TS_seen", 'agg_interval','start_time'])[0]
     agg_interval = float(agg_interval)
+    
     if not isinstance(start_ts, (int, np.integer)):
         start_ts = pd.Timestamp(start_ts)
-    
-    print(start_ts, agg_interval, end_index)
-    print(type(start_ts), type(agg_interval), type(end_index))
-    
+     
     end = index_ts_inv_mapper(start_ts, agg_interval, end_index)
     start = index_ts_inv_mapper(start_ts, agg_interval, end_index-no_coeff )
-    print(start, end, agg_interval, end_index)
     # the forecast should always start at the last point
     obs = interface.get_time_series( table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
-    print(obs[-1], len(obs))
-    output = np.zeros([ahead+ no_coeff])
-    output[:no_coeff] = obs
+    output = np.zeros(ahead+no_coeff)
+    output[:no_coeff] = np.array(obs)[:,0]
     for i in range(0, ahead):
         output[i + no_coeff] = np.dot(coeffs.T, output[i:i + no_coeff])
     return output[-ahead:]
