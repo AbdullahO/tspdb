@@ -37,7 +37,7 @@ b- run  postgreSQL using the command:
 
 c- from inside postgres:
 				
-	CREATE EXTENSION plpython3u
+	CREATE EXTENSION plpython3u;
 
 d- if you see  "CREATE EXTENSION" that means it is working properly.
 
@@ -71,13 +71,13 @@ This step uses pg_config to find out where PostgreSQL stores its extension files
 
 6- create tspdb extension by running
 		
-	CREATE EXTENSION tspdb
+	CREATE EXTENSION tspdb;
 
 #### Testing tspdb
 
 1- test the package through running 
 
-		SELECT test_tspdb();
+	SELECT test_tspdb();
 
 if you get at the last line 
 	
@@ -86,7 +86,7 @@ then tspdb should be working properly
 
 2- check the built pindices through
 		
-		SELECT * from list_pindices()
+	SELECT * from list_pindices();
 
 this shows you a list of the predictive indices built in the aforementioned test
 
