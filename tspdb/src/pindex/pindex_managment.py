@@ -8,7 +8,7 @@ from tspdb.src.pindex.predict import get_prediction_range, get_prediction
 import os
 from datetime import datetime
 from tspdb.src.pindex.pindex_utils import index_ts_mapper, index_ts_inv_mapper, index_exists, get_bound_time
-
+from sklearn.metrics import r2_score
 
 def delete_pindex(db_interface, index_name, schema='tspdb'):
     """
@@ -93,7 +93,7 @@ def load_pindex(db_interface, index_name, _dir=''):
     time_series_table = meta_inf[0][-3:]
     TSPD = TSPI(interface=db_interface, index_name=index_name, schema=None, T=T, T0=T0, rank=k, gamma=gamma,
                 direct_var=direct_var, rank_var=k_var, T_var=T_var, SSVT=SSVT, start_time=start_time,
-                aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table=time_series_table, persist_L = persist_l)
+                aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table_name=time_series_table[0], time_column = time_series_table[2], value_column = time_series_table[1].split(',') ,persist_L = persist_l)
 
     # load meta for specific models
 
@@ -187,14 +187,17 @@ class TSPI(object):
     # mean_model:               (TSMM object) the means prediction model object
     # var_model:                (TSMM object) the variance prediction model object
 
-    def __init__(self, rank=3, rank_var=1, T=int(1e5), T_var=None, gamma=0.2, T0=1000, col_to_row_ratio=10,
+    def __init__(self, rank = None, rank_var = 1, T=int(1e5), T_var=None, gamma=0.2, T0=1000, col_to_row_ratio=10,
                  interface=Interface, agg_interval=1., start_time=None, aggregation_method='average',
-                 time_series_table=["", "", ""], SSVT=False, p=1.0, direct_var=True, L=None,  recreate=True,
+                 time_series_table_name= "", time_column = "", value_column = [''], SSVT=False, p=1.0, direct_var=True, L=None,  recreate=True,
                  index_name=None, _dir='', schema='tspdb', persist_L = None):
         self._dir = _dir
         self.index_ts = False
         self.db_interface = interface
-        self.time_series_table = time_series_table
+        self.time_series_table_name = time_series_table_name
+        self.time_column = time_column
+        self.value_column = value_column
+        self.no_ts = len(value_column)
         self.k = rank
         self.T = int(T)
         self.SSVT = SSVT
@@ -205,9 +208,8 @@ class TSPI(object):
             self.T_var = T_var
 
         self.persist_L = persist_L
-        
+
         if self.persist_L is None:       
-            
             self.persist_L = False
             if L is not None:
                 self.persist_L = True
@@ -225,10 +227,10 @@ class TSPI(object):
         self.tz = None
 
         if self.start_time is None:
-            self.start_time = get_bound_time(interface, self.time_series_table[0], self.time_series_table[2], 'min')
+            self.start_time = get_bound_time(interface, self.time_series_table_name, self.time_column, 'min')
         
         if self.index_name is None:
-            self.index_name = self.schema + '.pindex_' + time_series_table[0]
+            self.index_name = self.schema + '.pindex_' + self.time_series_table_name
         
         elif schema is not None:
             self.index_name = self.schema + '.' + self.index_name
@@ -237,10 +239,10 @@ class TSPI(object):
             self.agg_interval = 1.
 
         self.ts_model = TSMM(self.k, self.T, self.gamma, self.T0, col_to_row_ratio=col_to_row_ratio,
-                             model_table_name=self.index_name, SSVT=self.SSVT, p=p, L=L, persist_L = self.persist_L)
+                             model_table_name=self.index_name, SSVT=self.SSVT, p=p, L=L, persist_L = self.persist_L, no_ts = self.no_ts)
         self.var_model = TSMM(self.k_var, self.T_var, self.gamma, self.T0, col_to_row_ratio=col_to_row_ratio,
                               model_table_name=self.index_name + "_variance", SSVT=self.SSVT, p=p,
-                              L=L, persist_L = self.persist_L)
+                              L=L, persist_L = self.persist_L, no_ts = self.no_ts)
         self.direct_var = direct_var
 
         if self.k_var:
@@ -254,28 +256,24 @@ class TSPI(object):
         update_model function
         """
         # find starting and ending time 
-        end_point = get_bound_time(self.db_interface, self.time_series_table[0], self.time_series_table[2], 'max')
+        end_point = get_bound_time(self.db_interface, self.time_series_table_name, self.time_column, 'max')
         start_point = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex)
-
         # ------------------------------------------------------
         # why np.array ? delete when value_column  check is implemeted
         # ------------------------------------------------------
-
         new_entries = np.array(self._get_range(start_point, end_point), dtype=np.float)
-
         if len(new_entries) > 0:
             self.update_model(new_entries)
             self.write_model(True)
-        self.db_interface.drop_trigger(self.time_series_table[0])
-        self.db_interface.create_insert_trigger(self.time_series_table[0], self.index_name)
+        self.db_interface.drop_trigger(self.time_series_table_name)
+        self.db_interface.create_insert_trigger(self.time_series_table_name, self.index_name)
 
     def update_index(self):
         """
         This function query new datapoints from the database using the variable self.TimeSeriesIndex and call the
         update_model function
         """
-
-        end_point = get_bound_time(self.db_interface, self.time_series_table[0], self.time_series_table[2], 'max')
+        end_point = get_bound_time(self.db_interface, self.time_series_table_name, self.time_column, 'max')
         start_point = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex)
         new_entries = self._get_range(start_point, end_point)
         if len(new_entries) > 0:
@@ -293,40 +291,38 @@ class TSPI(object):
         # is it already numpy.array? ( not really needed but not harmful)
         obs = np.array(NewEntries)
         # ------------------------------------------------------
-
         # lag is the the slack between the variance and timeseries model        
         lag = None
 
         if self.ts_model.TimeSeries is not None:
-            lag = self.ts_model.TimeSeriesIndex - self.var_model.TimeSeriesIndex
-            lagged_obs = self.ts_model.TimeSeries[- lag:]
+            lag = (self.ts_model.TimeSeriesIndex - self.var_model.TimeSeriesIndex)//self.no_ts
+            lagged_obs = self.ts_model.TimeSeries[-lag:,:]
 
         # Update mean model
         self.ts_model.update_model(NewEntries)
-
+        
+        if self.k is None:
+            self.k = self.ts_model.kSingularValuesToKeep
         # Determine updated models
+        
         models = {k: self.ts_model.models[k] for k in self.ts_model.models if self.ts_model.models[k].updated}
 
         if self.k_var:
             if self.direct_var:
 
-                means = self.ts_model._denoiseTS(models)[self.var_model.TimeSeriesIndex:self.ts_model.MUpdateIndex]
+                means = self.ts_model._denoiseTS(models)[self.var_model.TimeSeriesIndex//self.no_ts:self.ts_model.MUpdateIndex//self.no_ts,:]
                 if lag is not None:
                     var_obs = np.append(lagged_obs, obs)
                 else:
                     var_obs = obs
-
-                var_entries = np.square(var_obs[:len(means)] - means)
-
+                print(self.ts_model.MUpdateIndex, self.var_model.TimeSeriesIndex, self.ts_model._denoiseTS(models).shape)
+                var_entries = np.square(var_obs[:len(means),:] - means)
                 # ------------------------------------------------------
                 # EDIT: Is this necessary (NAN to zero)?
                 # var_entries[np.isnan(var_obs[:len(means)])] = 0    
                 # ------------------------------------------------------
-
                 self.var_model.update_model(var_entries)
-
             else:
-
                 var_entries = np.square(NewEntries)
                 self.var_model.update_model(var_entries)
 
@@ -353,7 +349,7 @@ class TSPI(object):
         # write mean and variance tables
         self.write_tsmm_model(self.ts_model, create)
         self.write_tsmm_model(self.var_model, create)
-        
+        self.calculate_out_of_sample_error(self.ts_model)
         # if time is timestamp, convert to pd.Timestamp
         if not isinstance(self.start_time, (int, np.integer)):
             self.start_time = pd.to_datetime(self.start_time)
@@ -364,8 +360,8 @@ class TSPI(object):
                   'L': [self.ts_model.L],
                   'last_TS_seen': [self.ts_model.TimeSeriesIndex], 'last_TS_inc': [self.ts_model.MUpdateIndex],
                   'last_TS_fullSVD': [self.ts_model.ReconIndex],
-                  'time_series_table_name': [self.time_series_table[0]], 'indexed_column': [self.time_series_table[1]],
-                  'time_column': [self.time_series_table[2]],
+                  'time_series_table_name': [self.time_series_table_name], 'indexed_column': [','.join(self.value_column)],
+                  'time_column': [self.time_column],
                   'soft_thresholding': [self.SSVT], 'no_submodels': [len(self.ts_model.models)],
                   'no_submodels_var': [len(self.var_model.models)],
                   'col_to_row_ratio': [self.ts_model.col_to_row_ratio],
@@ -388,24 +384,25 @@ class TSPI(object):
         if create:
             # create meta table
             self.db_interface.create_table(self.index_name + '_meta', metadf, include_index=False)
-            last_index = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex)
+            last_index = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex//self.no_ts)
             # populate tspdb pindices and column pindices
             if isinstance(self.start_time, (int, np.integer)):
                 self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table[0], self.time_series_table[2], self.uq,
+                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
                                           self.agg_interval, self.start_time, last_index],
                                          columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
                                                   'initial_index', 'last_index'])
             else:
                 self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table[0], self.time_series_table[2], self.uq,
+                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
                                           self.agg_interval, self.start_time, last_index],
                                          columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
                                                   'initial_timestamp', 'last_timestamp'])
             self.db_interface.insert('tspdb.pindices_stats',
                                          [index_name, self.ts_model.TimeSeriesIndex, len(self.ts_model.models),np.mean([ m.imputation_model_score for m in self.ts_model.models.values() ]), np.mean([ m.forecast_model_score for m in self.ts_model.models.values()])],
                                          columns=['index_name', 'number_of_observations', 'number_of_trained_models', 'imputation_score', 'forecast_score'])
-            self.db_interface.insert('tspdb.pindices_columns', [index_name, self.time_series_table[1]],
+            for value_column in self.value_column:
+                self.db_interface.insert('tspdb.pindices_columns', [index_name, value_column],
                                      columns=['index_name', 'value_column'])
 
         else:
@@ -422,13 +419,13 @@ class TSPI(object):
             
             if isinstance(self.start_time, (int, np.integer)):
                 self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table[0], self.time_series_table[2], self.uq,
+                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
                                           self.agg_interval, self.start_time, last_index],
                                          columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
                                                   'initial_index', 'last_index'])
             else:
                 self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table[0], self.time_series_table[2], self.uq,
+                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
                                           self.agg_interval, self.start_time, last_index],
                                          columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
                                                   'initial_timestamp', 'last_timestamp'])
@@ -454,13 +451,13 @@ class TSPI(object):
         if len(models) == 0:
             return
 
-        N = tsmm.L
-        M = int(N * tsmm.col_to_row_ratio)
+        
         tableNames = [model_name + '_' + c for c in ['u', 'v', 's', 'c', 'm']]
 
         last_model = max(models.keys())
         first_model = min(models.keys())
-
+        N = models[first_model].N
+        M = models[first_model].M
         # populate U_table data
         U_table = np.zeros([(len(models) - 1) * N + models[last_model].N, 1 + tsmm.kSingularValuesToKeep])
         for i, m in models.items():
@@ -499,6 +496,8 @@ class TSPI(object):
         vdf = pd.DataFrame(columns=columns, data=V_table)
         vdf.index = np.arange(first_model * M, first_model * M + len(V_table))
         vdf['tscolumn'] = (vdf.index - 0.5 * M * vdf['modelno']).astype(int)
+        vdf['time_series'] = (vdf.index%self.no_ts).astype(int)
+        
         if create:
             self.db_interface.create_table(tableNames[1], vdf, 'row_id', index_label='row_id')
         else:
@@ -547,10 +546,10 @@ class TSPI(object):
             self.db_interface.bulk_insert(tableNames[3], cdf, include_index=True, index_label="row_id")
 
         # populate m_table data 
-        m_table = np.zeros([len(models), 9])
+        m_table = np.zeros([len(models), 10])
         for i, m in models.items():
-            m_table[i - first_model, :] = [i, m.N, m.M, m.start, m.M * m.N, m.TimesUpdated, m.TimesReconstructed, m.imputation_model_score, m.forecast_model_score]
-        mdf = pd.DataFrame(columns=['modelno', 'L', 'N', 'start', 'dataPoints', 'timesUpdated', 'timesRecons','imputation_acc', 'forecasting_acc'],
+            m_table[i - first_model, :] = [i, m.N, m.M, m.start, m.M * m.N, m.TimesUpdated, m.TimesReconstructed, m.imputation_model_score, m.forecast_model_score, np.nan]
+        mdf = pd.DataFrame(columns=['modelno', 'L', 'N', 'start', 'dataPoints', 'timesUpdated', 'timesRecons','imputation_acc', 'forecasting_acc', 'forecasting_test_acc'],
                            data=m_table)
         if create:
             self.db_interface.create_table(tableNames[4], mdf, 'modelno', include_index=False, index_label='modelno')
@@ -573,6 +572,36 @@ class TSPI(object):
             last_model = len(tsmm.models) - 1
             self.db_interface.create_coefficients_average_table(tableNames[3], tableNames[3] + '_view', [1,2,10, 20, 100],
                                                                 last_model, refresh=True)
+        
+    
+    def calculate_out_of_sample_error(self, tsmm):
+        models = {k: tsmm.models[k] for k in tsmm.models if tsmm.models[k].updated}
+        last_model = max(models.keys())
+        index_name = tsmm.model_tables_name
+        m_table = np.zeros([len(models),10])
+        columns = ['modelno', 'L', 'N', 'start', 'dataPoints', 'timesUpdated', 'timesRecons','imputation_acc', 'forecasting_acc', 'forecasting_test_acc']
+        i = 0
+        for model in models:
+            if model <=1 or model == last_model: continue
+            matrix = models[model].matrix[:-1,:]
+            L = matrix.shape[0]
+            coeffs = self.db_interface.get_coeff_model(index_name+'_c',model-2 )
+            
+            y_h = np.dot(matrix.T, coeffs[-L:])
+            y = models[model].lastRowObservations
+            out_of_sample_error = r2_score(y,y_h)
+            model_row = np.array(self.db_interface.query_table(index_name+'_m',columns,'modelno = %s'%(model-2))[0])
+            model_row[-1] = out_of_sample_error
+
+            self.db_interface.delete(index_name+'_m', 'modelno = %s' % (model-2,))
+            m_table[i,:] = model_row
+            i+=1
+        m_table = m_table[:i,:]
+       
+        mdf = pd.DataFrame(columns=columns,
+                           data=m_table)
+       
+        self.db_interface.bulk_insert(index_name+'_m', mdf, include_index=False)
 
     def _load_models_from_db(self, tsmm):
 
@@ -600,6 +629,8 @@ class TSPI(object):
         tsmm.models[last_model].Vk = self.db_interface.get_V_row(tsmm.model_tables_name + '_v',
                                                                  [0, tsmm.TimeSeriesIndex], tsmm.kSingularValuesToKeep,
                                                                  [last_model, last_model])
+        
+        # This shold be fixed, to fix this, we need to store the skw,ukw and skw as well ..
 
         tsmm.models[last_model].skw = tsmm.models[last_model].sk
         tsmm.models[last_model].Ukw = tsmm.models[last_model].Uk[:-1, :]
@@ -610,9 +641,9 @@ class TSPI(object):
         implement the same singles point query. use get from table function in interface
         """
 
-        return np.array([i[0] for i in self.db_interface.get_time_series(self.time_series_table[0], t1, t2,
-                                                                         value_column=self.time_series_table[1],
-                                                                         index_column=self.time_series_table[2],
+        return np.array([i for i in self.db_interface.get_time_series(self.time_series_table_name, t1, t2,
+                                                                         value_column=','.join(self.value_column),
+                                                                         index_column=self.time_column,
                                                                          aggregation_method=self.aggregation_method,
                                                                          interval=self.agg_interval,
                                                                          start_ts=self.start_time)])

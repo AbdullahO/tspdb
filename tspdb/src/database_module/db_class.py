@@ -73,6 +73,28 @@ class Interface(object):
         queried values for the selected range
         """
         pass
+    
+    @abc.abstractmethod
+    
+    def get_coeff_model(self, index_name, model_no):
+        """
+        query the c table to get the coefficients of the (model_no) sub-model 
+        ----------
+        Parameters
+        ----------
+        index_name: string
+            pindex_name 
+        
+
+        models_no:int
+            submodel for which we want the coefficients
+        ----------
+        Returns
+        ---------- 
+        array 
+        queried values for the selected range
+        """
+        pass
 
     @abc.abstractmethod
     def get_V_row(self, table_name, tscol_range, k, return_modelno ):

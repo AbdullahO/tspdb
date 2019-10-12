@@ -10,25 +10,32 @@ class TSMM(object):
     # gamma:                    (float) (0,1) fraction of T after which the model is updated
     # col_to_row_ratio:         (int) the ration of no. columns to the number of rows in each sub-model
 
-    def __init__(self, kSingularValuesToKeep=3, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=1.0, L=None, model_table_name='', persist_L = False):
+    def __init__(self, kSingularValuesToKeep=None, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=1.0, L=None, model_table_name='', persist_L = False, no_ts = 1):
         self.kSingularValuesToKeep = kSingularValuesToKeep
         
+        self.no_ts = no_ts
+        self.col_to_row_ratio = col_to_row_ratio
+        if self.col_to_row_ratio % self.no_ts != 0:
+            if self.col_to_row_ratio % self.no_ts >= self.no_ts/2:
+                self.col_to_row_ratio = self.col_to_row_ratio + (self.no_ts-self.col_to_row_ratio % self.no_ts)
+            else:
+                self.col_to_row_ratio = self.col_to_row_ratio - (self.col_to_row_ratio % self.no_ts)
         if L is None:
-            self.L = int(np.sqrt(T / col_to_row_ratio))
-            M = int(self.L * col_to_row_ratio)
+            self.L = int(np.sqrt(T / self.col_to_row_ratio))
+            M = int(self.L * self.col_to_row_ratio)
             self.T = int(self.L * M)
-            self.col_to_row_ratio = col_to_row_ratio
-      
-        else:
             
+        else:
             self.L = L
             M = int(T/L)
             self.T = int(self.L*M)
             self.col_to_row_ratio = M/L
       
-        if M % 2 != 0:
-            M = M+ 1
+        if M % (2*self.no_ts) != 0:
+            M = M - M %(2*self.no_ts)
+            # if not persist_L: self.L = self.T//M 
             self.T = self.L * M
+            self.col_to_row_ratio = M//self.L 
             print ('Number of columns has to be even, thus T is changed into ', self.T)
         
         self.persist_L = persist_L
@@ -42,6 +49,7 @@ class TSMM(object):
         self.model_tables_name = model_table_name
         self.SSVT = SSVT
         self.p = p
+        
 
     def get_model_index(self, ts_index=None):
         if ts_index is None:
@@ -57,14 +65,17 @@ class TSMM(object):
         :param NewEntries: Entries to be included in the new model
         """
         # Define update chunck for the update SVD function (Not really needed, should be resolved once the update function is fixed)
-
-        if len(self.models) == 1 and len(NewEntries) < self.T / 2:
-            UpdateChunk = 20 * int(np.sqrt(self.T0))
+        assert len(NewEntries.shape) == 2
+        assert NewEntries.shape[1] == self.no_ts
+        if len(self.models) == 1 and NewEntries.size < self.T / 2:
+            UpdateChunk = 20 * int(np.sqrt(self.T0))//self.no_ts
         else:
-            UpdateChunk = int(self.T / (2 * (1+self.col_to_row_ratio) * 0.85))
+            UpdateChunk = int(self.T / (2 * (1+self.col_to_row_ratio) * 0.85))//self.no_ts
 
         # find if new models should be constructed
-        N = len(NewEntries)
+        N = NewEntries.size
+        Rows = NewEntries.shape[0]
+        
         if N == 0:
             return
 
@@ -76,68 +87,76 @@ class TSMM(object):
             # If it is a big update, do it at once
             last_model_size = self.models[updated_no_models - 1].M * self.models[updated_no_models - 1].N
 
-            if len(NewEntries) / float(last_model_size) > self.gamma:
+            if N/float(last_model_size) > self.gamma:
                
-                self.updateTS(NewEntries[:])
+                self.updateTS(NewEntries[:,:])
                 self.fitModels()
                 return
             # Otherwise, update it chunk by chunk (Because Incremental Update requires small updates (not really, need to be fixed))
             i = -1
-            for i in range(int(ceil(len(NewEntries)/(UpdateChunk)))):
-                self.updateTS(NewEntries[i * UpdateChunk: (i + 1) * UpdateChunk])
+            for i in range(int(ceil(Rows/(UpdateChunk)))):
+                self.updateTS(NewEntries[i * UpdateChunk: (i + 1) * UpdateChunk,:])
                 self.fitModels()
 
         else:
             # first complete the last model so it would have exactly T entries
             if current_no_models > 0:
-                fillFactor = (self.TimeSeriesIndex % int(self.T / 2))
-                FillElements = int((self.T / 2 - fillFactor)) * (fillFactor > 0)
+                fillFactor = (self.TimeSeriesIndex % int(self.T /2))
+                FillElements = (int((self.T / 2 - fillFactor)) * (fillFactor > 0)) // self.no_ts
                 if FillElements > 0:
-                    self.updateTS(NewEntries[:FillElements])
+                    self.updateTS(NewEntries[:FillElements,:])
                     self.fitModels()
-                    NewEntries = NewEntries[FillElements:]
+                    NewEntries = NewEntries[FillElements:,:]
             # Then, build the other new models. one of the is the very first model, we will skip the second iteration.
             SkipNext = False
+            
             for i in range(updated_no_models - current_no_models + (current_no_models == 0)):
                 if SkipNext:
                     SkipNext = False
                     continue
+                
                 if len(self.models) == 0:
-                    self.updateTS(NewEntries[: self.T])
+                    self.updateTS(NewEntries[: self.T//self.no_ts,:])
                     SkipNext = True
                     self.fitModels()
                     i += 1
+                    if 0 in self.models:
+                        self.kSingularValuesToKeep = self.models[0].kSingularValues
+                
                 else:
-                    self.updateTS(NewEntries[i * int(self.T / 2): (i + 1) * int(self.T / 2)])
+                    self.updateTS(NewEntries[i * int((self.T//self.no_ts)/2): (i + 1) * int((self.T//self.no_ts)/ 2),:])
                     self.fitModels()
 
     def updateTS(self, NewEntries):
         # Update the time series with the new entries.
         # only keep the last T entries
 
-        n = len(NewEntries)
+        N = NewEntries.size
+        num_ts_obs = self.T//self.no_ts
+        num_new_rows = N//self.no_ts
 
-        if n > self.T / 2 and len(self.models) > 1:
+        if N > self.T / 2 and len(self.models) > 1:
             raise Exception('TimeSeries should be updated before T/2 values are assigned')
 
-        self.TimeSeriesIndex += n
+        self.TimeSeriesIndex += N
 
-        if self.TimeSeriesIndex == n:
+        if self.TimeSeriesIndex == N:
             self.TimeSeries = NewEntries
 
-        elif len(self.TimeSeries) < self.T:
-            TSarray = np.zeros(len(self.TimeSeries) + n)
-            TSarray[:len(self.TimeSeries)] = self.TimeSeries
-            TSarray[len(self.TimeSeries):] = NewEntries
+        elif self.TimeSeries.size < self.T:
+            TSarray = np.zeros([len(self.TimeSeries) + N//self.no_ts, self.no_ts])
+            TSarray[:len(self.TimeSeries),:] = self.TimeSeries
+            TSarray[len(self.TimeSeries):,:] = NewEntries
             self.TimeSeries = TSarray
 
         else:
-            if n < self.T: self.TimeSeries[:self.T - n] = self.TimeSeries[-self.T + n:]
+            self.TimeSeries[:num_ts_obs-num_new_rows,:] = self.TimeSeries[-num_ts_obs + num_new_rows:,:]
 
-            self.TimeSeries[-n:] = NewEntries
+            self.TimeSeries[-num_new_rows:,:] = NewEntries
 
-        if len(self.TimeSeries) > self.T:
-            self.TimeSeries = self.TimeSeries[-self.T:]
+        if self.TimeSeries.shape[0] > num_ts_obs:
+
+            self.TimeSeries = self.TimeSeries[-num_ts_obs:,:]
 
     def fitModels(self):
 
@@ -159,45 +178,59 @@ class TSMM(object):
 
         # Build a new model
         if ModelIndex not in self.models:
+
             # start with the last T/2 entries from previous model
-            initEntries = self.TimeSeries[int(int(self.T / 2) - self.TimeSeriesIndex % (self.T / 2)):]
+            initEntries = self.TimeSeries[int(int(self.T / 2) - self.TimeSeriesIndex % (self.T / 2))//self.no_ts:,:]
             start = self.TimeSeriesIndex - self.TimeSeriesIndex % int(self.T / 2) - int(self.T / 2)
             # if ModelIndex != 0: assert len(initEntries) == self.T / 2
             rect = 1
-            if lenEntriesSinceCons == self.T / 2 or ModelIndex == 0:
-                initEntries = self.TimeSeries[:]
+            if lenEntriesSinceCons == self.T // 2 or ModelIndex == 0:
+                initEntries = self.TimeSeries[:,:]
                 start = max(self.TimeSeriesIndex - self.T, 0)
 
             if self.persist_L: N = self.L
-            else: N = int(np.sqrt(len(initEntries) / (self.col_to_row_ratio)))
-            M = int(len(initEntries) / N)
+            else: N = int(np.sqrt(initEntries.size / (self.col_to_row_ratio)))
+
+            M = int(initEntries.size / N)
+            if M%self.no_ts != 0:
+                M -= M%self.no_ts
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start=int(start), SSVT=self.SSVT,
                                                probObservation=self.p)
+            M_ts = M//self.no_ts
+            flattened_obs = initEntries[:M_ts*N,:].reshape([N,M], order = 'F')
+            flattened_obs = flattened_obs[:,np.arange(M_ts*self.no_ts).reshape([self.no_ts,M_ts]).flatten('F')]
             
-            self.models[ModelIndex].fit(pd.DataFrame(data={'t1': initEntries[:int(N * M)]}))
+            
+            self.models[ModelIndex].fit(pd.DataFrame(data={'t1': flattened_obs.flatten('F')}))
             self.ReconIndex = N * M + start
             self.MUpdateIndex = self.ReconIndex
 
-            if lenEntriesSinceCons == self.T / 2 or ModelIndex == 0:
+            if lenEntriesSinceCons == self.T // 2 or ModelIndex == 0:
                 return
+        
         Model = self.models[ModelIndex]
-
         lenEntriesSinceCons = self.TimeSeriesIndex - self.ReconIndex
         ModelLength = Model.N * Model.M + Model.start
-        if (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma) or (
-                        self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to create new model
-
+        if (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma) or (self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to create new model
             TSlength = self.TimeSeriesIndex - Model.start
             if self.persist_L: N = self.L
             else: N = int(np.sqrt(TSlength/self.col_to_row_ratio))
             M = int(TSlength / N)
-            TSeries = self.TimeSeries[-TSlength:]
-            TSeries = TSeries[:N * M]
+            if M % self.no_ts != 0:
+                M -= M%self.no_ts
 
+            M_ts = M//self.no_ts
+            
+            TSeries = self.TimeSeries[-TSlength//self.no_ts:,:]
+            TSeries = TSeries[:(N * M)//self.no_ts,:]
+            flattened_obs = TSeries.reshape([N,M], order = 'F')
+            flattened_obs = flattened_obs[:,np.arange(M).reshape([self.no_ts,M_ts]).flatten('F')]
+            
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start= int(Model.start),
                                                TimesReconstructed=Model.TimesReconstructed + 1,
                                                TimesUpdated=Model.TimesUpdated, SSVT=self.SSVT, probObservation=self.p)
-            self.models[ModelIndex].fit(pd.DataFrame(data={'t1': TSeries}))
+            
+            self.models[ModelIndex].fit(pd.DataFrame(data={'t1': flattened_obs.flatten('F')}))
             self.ReconIndex = N * M + Model.start
             self.MUpdateIndex = self.ReconIndex
 
@@ -205,12 +238,17 @@ class TSMM(object):
 
             Model = self.models[ModelIndex]
             N = Model.N
-            if self.TimeSeriesIndex - ModelLength < N:
+            M = Model.M
+            if self.TimeSeriesIndex - ModelLength < N*self.no_ts:
                 pass
-            else:
-                D = self.TimeSeries[-(self.TimeSeriesIndex - ModelLength):]
-                p = int(len(D) / N)
 
+            else:
+                NewEntries = self.TimeSeries[-(self.TimeSeriesIndex - ModelLength)//self.no_ts:,:]
+                num_new_columns = self.no_ts*((NewEntries[:,0]).size//N)
+                flattened_obs = NewEntries[:(num_new_columns*N)//self.no_ts,:].reshape([N,num_new_columns], order = 'F')
+                flattened_obs = flattened_obs[:,np.arange(num_new_columns).reshape([self.no_ts,num_new_columns//self.no_ts]).flatten('F')]
+                D = flattened_obs.flatten('F')
+                p = int(len(D) / N)
                 D = D[:N * p]
                 Model.updateSVD(D, 'UP')
                 self.MUpdateIndex = Model.N * Model.M + Model.start
@@ -218,21 +256,32 @@ class TSMM(object):
                 
 
     def _denoiseTS(self, models=None, index=None, range_=True):
+        # denoise the whole time series if no specific  submodels are selected
         if models is None:
             models = self.models
+        
         if range_ or index is None:
             if index is None:
                 index = [0, int(self.MUpdateIndex)]
-            denoised = np.zeros(index[1] - index[0])
-            count = np.zeros(index[1] - index[0])
+            no_obs = (index[1] - index[0])//self.no_ts
+            denoised = np.zeros([no_obs, self.no_ts])
+            count =  np.zeros([no_obs, self.no_ts])
             y1, y2 = index[0], index[1]
             for Model in models.values():
                 x1, x2 = Model.start, Model.M * Model.N + Model.start
                 if x1 <= y2 and y1 <= x2:
-                    RIndex = np.array([max(x1, y1), min(x2, y2)])
-                    RIndexS = RIndex - y1
-                    denoised[RIndexS[0]:RIndexS[1]] += Model.denoisedTS(RIndex - x1, range_)
-                    count[RIndexS[0]:RIndexS[1]] += 1
+                    RIndex = np.array([max(x1, y1), min(x2, y2)])//self.no_ts
+                    RIndexS = RIndex - y1//self.no_ts
+                    # call to make sure that model.matrix is estimated
+                    denoise_flat = Model.denoisedTS(return_ = False)
+                    M = Model.M
+                    N = Model.N
+                    denoised_matrix = Model.matrix
+                    denoised_columns_swapped = denoised_matrix[:,np.arange(M).reshape([M//self.no_ts, self.no_ts]).flatten('F')]
+                    denoised_ts = denoised_columns_swapped.reshape([denoised_columns_swapped.size//self.no_ts,self.no_ts],order ='F')
+                    denoised_index = RIndex-x1//self.no_ts
+                    denoised[RIndexS[0]:RIndexS[1],:] += denoised_ts[denoised_index[0]:denoised_index[1],:]
+                    count[RIndexS[0]:RIndexS[1],:] += 1
             denoised[count == 0] = np.nan
             denoised[count > 0] = denoised[count > 0] / count[count > 0]
             return denoised

@@ -8,7 +8,7 @@ from tspdb.src import tsUtils
 
 class SVDWrapper:
 
-    def __init__(self, matrix, method='numpy'):
+    def __init__(self, matrix, method='numpy', threshold = 0.95):
         if (type(matrix) != np.ndarray):
             raise Exception('SVDWrapper required matrix to be of type np.ndarray')
 
@@ -19,6 +19,7 @@ class SVDWrapper:
         self.V = None
         self.s = None
         self.next_sigma = 0
+        self.threshold = threshold
         (self.N, self.M) = np.shape(matrix)
 
         if (method not in self.methods):
@@ -34,25 +35,34 @@ class SVDWrapper:
     def decompose(self):
         # default is numpy's linear algebra library
         (self.U, self.s, self.V) = np.linalg.svd(self.matrix, full_matrices=False)
-
+        
+        S = np.cumsum(self.s**2)
+        S = S/S[-1]
+        k = np.argmax(S>self.threshold)+1
+        k = np.where(S>self.threshold)[0][0]+1
         # correct the dimensions of V
         self.V = self.V.T
-
+        return k
     # get the top K singular values and corresponding singular vector matrices
     def decomposeTopK(self, k):
 
         # if k is 0 or less, just return empty arrays
-        if (k < 1):
-            return ([], [], [])
+        if k is not None:
+            if (k < 1):
+                return ([], [], [])
 
-        # if k > the max possible singular values, set it to be that value
-        elif (k > np.min([self.M, self.N])):
-            k = np.min([self.M, self.N])
+            # if k > the max possible singular values, set it to be that value
+            elif (k > np.min([self.M, self.N])):
+                k = np.min([self.M, self.N])
 
         if ((self.U is None) | (self.V is None) | (self.s is None)):
-            self.decompose() # first perform the full decomposition
+            est_k = self.decompose() # first perform the full decomposition
+        if k is None:
+            k = est_k
+
         if k < len(self.s)-1: self.next_sigma = self.s[k]
         else: self.next_sigma  = 0
+        
         sk = self.s[0:k]
         Uk = self.U[:, 0:k]
         Vk = self.V[:, 0:k]

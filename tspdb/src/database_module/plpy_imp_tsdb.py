@@ -64,7 +64,8 @@ class plpyimp(Interface):
                     sql = 'Select ' + value_column + " from  " + name + " where " + index_column + " >= "+str(start)+" and " + index_column + " <= "+str(end)+" order by " + index_col + ' Desc'
                 result = self.engine.execute(sql)
             result = [row for row in result]
-            return [(row[value_column],) for row in result]
+            columns = value_column.split(',')
+            return [[row[ci] for ci in columns] for row in result]
 
         elif  isinstance(start, (pd.Timestamp)) and (isinstance(end, (pd.Timestamp)) or end is None):
             #SELECT
@@ -117,6 +118,30 @@ class plpyimp(Interface):
         else:
              raise Exception('start and end values must either be integers or pd.timestamp')
 
+    def get_coeff_model(self, index_name, model_no):
+        """
+        query the c table to get the coefficients of the (model_no) sub-model 
+        ----------
+        Parameters
+        ----------
+        index_name: string
+            pindex_name 
+        
+
+        models_no:int
+            submodel for which we want the coefficients
+        ----------
+        Returns
+        ---------- 
+        array 
+        queried values for the selected range
+        """
+        query = "SELECT coeffvalue FROM " + index_name + " WHERE modelno = %s   order by coeffpos Desc; "
+        query = query%(model_no)
+        result = self.engine.execute(query)
+        result = [row['coeffvalue'] for row in result]
+        return np.array(result)
+
     def get_U_row(self, table_name, tsrow_range, models_range,k, return_modelno = False):
 
         """
@@ -156,7 +181,7 @@ class plpyimp(Interface):
         #return pd.DataFrame(result).values
         return np.array(result)
 
-    def get_V_row(self, table_name, tscol_range,k, models_range = [0,10**10] ,return_modelno = False):
+    def get_V_row(self, table_name, tscol_range,k,value_index ,models_range = [0,10**10] ,return_modelno = False):
 
 
         """
@@ -186,8 +211,8 @@ class plpyimp(Interface):
         columns = 'v'+ ',v'.join([str(i) for i in range(1, k + 1)])
         if return_modelno :
             columns = 'modelno,'+ columns
-        query = "SELECT " + columns + " FROM " + table_name + " WHERE tscolumn >= %s and tscolumn <= %s and (modelno >= %s and modelno <= %s)   order by row_id; "
-        query = query %(tscol_range[0], tscol_range[1], models_range[0], models_range[1])
+        query = "SELECT " + columns + " FROM " + table_name + " WHERE  time_series = %s and tscolumn >= %s and tscolumn <= %s and (modelno >= %s and modelno <= %s)   order by row_id; "
+        query = query %(value_index, tscol_range[0], tscol_range[1], models_range[0], models_range[1])
 
         # query = "SELECT " + columns + " FROM " + table_name + " WHERE tscolumn >= %s and tscolumn <= %s order by row_id; "
         # query = query %(tscol_range[0], tscol_range[1])
@@ -239,7 +264,7 @@ class plpyimp(Interface):
         return np.array(result)
 
 
-    def get_SUV(self, table_name, tscol_range, tsrow_range, models_range, k ,return_modelno = False):
+    def get_SUV(self, table_name, tscol_range, tsrow_range, models_range, k ,value_index, return_modelno = False):
 
         """
         query the S, U, V matric from the database tables created via the prediction index. the query depend on the model
@@ -294,8 +319,8 @@ class plpyimp(Interface):
         # S = pd.DataFrame(result).values
 
         columns = model_no_str+'v'+ ',v'.join([str(i) for i in range(1, k + 1)])
-        query = "SELECT " + columns + " FROM " + table_name + "_v WHERE tscolumn = %s order by row_id; "
-        query = query %(tscol_range[0])
+        query = "SELECT " + columns + " FROM " + table_name + "_v WHERE time_series = %s and  tscolumn = %s order by row_id; "
+        query = query %(value_index,tscol_range[0])
         result = self.engine.execute(query)
         columns = columns.split(',')
         V = [[row[ci] for ci in columns] for row in result]

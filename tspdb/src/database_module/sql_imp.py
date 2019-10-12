@@ -101,6 +101,28 @@ class SqlImplementation(Interface):
 
         return result
 
+    def get_coeff_model(self, index_name, model_no):
+        """
+        query the c table to get the coefficients of the (model_no) sub-model 
+        ----------
+        Parameters
+        ----------
+        index_name: string
+            pindex_name 
+        
+
+        models_no:int
+            submodel for which we want the coefficients
+        ----------
+        Returns
+        ---------- 
+        array 
+        queried values for the selected range
+        """
+        query = "SELECT coeffvalue FROM " + index_name + " WHERE modelno = %s   order by coeffpos Desc; "
+        result = self.engine.execute(query,(model_no,)).fetchall()
+        return np.array(result)
+  
     def get_U_row(self, table_name, tsrow_range, models_range,k, return_modelno = False):
 
         """
@@ -143,7 +165,7 @@ class SqlImplementation(Interface):
         return np.array(result)
   
 
-    def get_V_row(self, table_name, tscol_range,k, models_range = [0,10**10], return_modelno = False):
+    def get_V_row(self, table_name, tscol_range,k, value_index, models_range = [0,10**10], return_modelno = False):
 
 
         """
@@ -175,11 +197,11 @@ class SqlImplementation(Interface):
         if return_modelno :
             columns = 'modelno, '+columns
         if models_range is None:
-            query = "SELECT "+ columns +" FROM " + table_name + " WHERE tscolumn >= %s and tscolumn <= %s  order by row_id; "
-            result = self.engine.execute(query, (tscol_range[0], tscol_range[1],)).fetchall()
+            query = "SELECT "+ columns +" FROM " + table_name + " WHERE time_series = %s and tscolumn >= %s and tscolumn <= %s  order by row_id; "
+            result = self.engine.execute(query, (value_index, tscol_range[0], tscol_range[1],)).fetchall()
         else:
-            query = "SELECT " + columns + " FROM " + table_name + " WHERE tscolumn >= %s and tscolumn <= %s and (modelno >= %s and modelno <= %s)   order by row_id; "
-            result = self.engine.execute(query, (tscol_range[0], tscol_range[1], models_range[0], models_range[1],)).fetchall()
+            query = "SELECT " + columns + " FROM " + table_name + " WHERE time_series = %s and tscolumn >= %s and tscolumn <= %s and (modelno >= %s and modelno <= %s)   order by row_id; "
+            result = self.engine.execute(query, (value_index, tscol_range[0], tscol_range[1], models_range[0], models_range[1],)).fetchall()
         return np.array(result)
 
     def get_S_row(self, table_name, models_range, k ,return_modelno = False):
@@ -215,7 +237,7 @@ class SqlImplementation(Interface):
         result = self.engine.execute(query, (models_range[0], models_range[1],)).fetchall()
         return np.array(result)
 
-    def get_SUV(self, table_name, tscol_range, tsrow_range, models_range, k ,return_modelno = False):
+    def get_SUV(self, table_name, tscol_range, tsrow_range, models_range, k ,value_index , return_modelno = False):
 
         """
         query the S, U, V matric from the database tables created via the prediction index. the query depend on the model
@@ -268,8 +290,8 @@ class SqlImplementation(Interface):
         
         columns = self.vcol
         
-        query = "SELECT " + columns + " FROM " + table_name + "_v WHERE tscolumn = %s  order by row_id; "
-        V = self.engine.execute(query, (tscol_range[0],)).fetchall()
+        query = "SELECT " + columns + " FROM " + table_name + "_v WHERE tscolumn = %s and time_series = %s order by row_id; "
+        V = self.engine.execute(query, (tscol_range[0],value_index)).fetchall()
         
         columns = self.ucol
         query = "SELECT "+ columns +" FROM " + table_name + "_u WHERE tsrow = %s and (modelno = %s or modelno = %s)  order by row_id; "

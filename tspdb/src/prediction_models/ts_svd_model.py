@@ -116,9 +116,12 @@ class SVDModel(object):
         return pd.DataFrame(data=dataDict)
 
 
-    def denoisedTS(self, ind = None, range = True):
+    def denoisedTS(self, ind = None, range = True,return_ = True):
         if self.matrix is None:
             self.matrix =  tsUtils.matrixFromSVD(self.sk, self.Uk, self.Vk, self.soft_threshold,probability=self.p)
+        if not return_:
+            return
+            
         NewColsDenoised = self.matrix.flatten('F')
         if ind is None:
             return NewColsDenoised
@@ -185,6 +188,9 @@ class SVDModel(object):
         # now produce a thresholdedthresholded/de-noised matrix. this will over-write the original data matrix
         svdMod = SVD(self.matrix, method='numpy')
         (self.sk, self.Uk, self.Vk) = svdMod.reconstructMatrix(self.kSingularValues, returnMatrix=False)
+        if self.kSingularValues is None:
+            self.kSingularValues= len(self.sk)
+        
         if self.SSVT: self.soft_threshold = svdMod.next_sigma
         # set weights
         self.matrix = tsUtils.matrixFromSVD(self.sk, self.Uk, self.Vk, self.soft_threshold,probability=self.p)
