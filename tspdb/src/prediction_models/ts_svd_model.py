@@ -22,7 +22,9 @@ class SVDModel(object):
     #                               the time series in 'otherSeriesKeysArray' will include the latest data point.
     #                               Note: the time series of interest (seriesToPredictKey) will never include 
     #                               the latest data-points for prediction
-    def __init__(self, seriesToPredictKey, kSingularValuesToKeep, N, M,updated = True, probObservation=1.0, svdMethod='numpy', otherSeriesKeysArray=[], includePastDataOnly=True, start = 0, TimesUpdated = 0, TimesReconstructed =0, SSVT = False ):
+    def __init__(self, seriesToPredictKey, kSingularValuesToKeep, N, M,updated = True, probObservation=1.0, svdMethod='numpy', otherSeriesKeysArray=[],\
+     includePastDataOnly=True, start = 0, TimesUpdated = 0, TimesReconstructed =0, SSVT = False , no_ts = 1, forecast_model_score = None,forecast_model_score_test = None,\
+      imputation_model_score = None):
 
         self.seriesToPredictKey = seriesToPredictKey
         self.otherSeriesKeysArray = otherSeriesKeysArray
@@ -45,12 +47,23 @@ class SVDModel(object):
         self.Vkw = None
         self.skw = None
         self.p = probObservation
-        self.forecast_model_score = 0
-        self.imputation_model_score = 0
         self.weights = None
         self.SSVT = SSVT
         self.soft_threshold = 0
         self.updated = updated
+        self.no_ts = no_ts
+        if forecast_model_score is None:
+            forecast_model_score = np.zeros(no_ts)
+        if imputation_model_score is None:
+            imputation_model_score = np.zeros(no_ts)
+        if forecast_model_score_test is None:
+            forecast_model_score_test = np.full(no_ts,np.nan)
+        assert len(imputation_model_score) == no_ts 
+        assert len(forecast_model_score) == no_ts  
+        assert len(forecast_model_score_test) == no_ts     
+        self.forecast_model_score = forecast_model_score
+        self.forecast_model_score_test = forecast_model_score_test
+        self.imputation_model_score = imputation_model_score
     # run a least-squares regression of the last row of self.matrix and all other rows of self.matrix
     # sets and returns the weights
     # DO NOT call directly
@@ -96,7 +109,8 @@ class SVDModel(object):
         matrix = tsUtils.matrixFromSVD(self.skw, self.Ukw, self.Vkw, soft_threshold=soft_threshold)
         newMatrixPInv = tsUtils.pInverseMatrixFromSVD(self.skw, self.Ukw, self.Vkw,soft_threshold=soft_threshold)
         self.weights = np.dot(newMatrixPInv.T, self.matrix[-1,:].T)
-        self.forecast_model_score = r2_score( self.lastRowObservations, np.dot(matrix.T,self.weights))
+        for i in range(self.no_ts):
+            self.forecast_model_score[i] = r2_score(self.lastRowObservations[i::self.no_ts], np.dot(matrix[:,i::self.no_ts].T,self.weights))
 
     # return the imputed matrix
     def denoisedDF(self):
@@ -116,13 +130,15 @@ class SVDModel(object):
         return pd.DataFrame(data=dataDict)
 
 
-    def denoisedTS(self, ind = None, range = True,return_ = True):
+    def denoisedTS(self, ind = None, range = True,return_ = True, ts = None):
         if self.matrix is None:
             self.matrix =  tsUtils.matrixFromSVD(self.sk, self.Uk, self.Vk, self.soft_threshold,probability=self.p)
         if not return_:
             return
-            
-        NewColsDenoised = self.matrix.flatten('F')
+        if ts is None:    
+            NewColsDenoised = self.matrix.flatten('F')
+        else:
+            NewColsDenoised = self.matrix[:,ts::self.no_ts].flatten('F')
         if ind is None:
             return NewColsDenoised
         if range:
@@ -185,6 +201,7 @@ class SVDModel(object):
 
         self._assignData(keyToSeriesDF, missingValueFill=True)
         obs = self.matrix.flatten('F')
+        obs_matrix = self.matrix.copy()
         # now produce a thresholdedthresholded/de-noised matrix. this will over-write the original data matrix
         svdMod = SVD(self.matrix, method='numpy')
         (self.sk, self.Uk, self.Vk) = svdMod.reconstructMatrix(self.kSingularValues, returnMatrix=False)
@@ -194,7 +211,9 @@ class SVDModel(object):
         if self.SSVT: self.soft_threshold = svdMod.next_sigma
         # set weights
         self.matrix = tsUtils.matrixFromSVD(self.sk, self.Uk, self.Vk, self.soft_threshold,probability=self.p)
-        self.imputation_model_score = r2_score(obs,self.denoisedTS())
+        for i in range(self.no_ts):
+            obs = obs_matrix[:,i::self.no_ts].flatten('F')
+            self.imputation_model_score[i] = r2_score(obs,self.denoisedTS(ts = i))
         self._computeWeights()
 
     def updateSVD(self,D, method = 'UP', missingValueFill = True):

@@ -15,28 +15,28 @@ class TSMM(object):
         
         self.no_ts = no_ts
         self.col_to_row_ratio = col_to_row_ratio
-        if self.col_to_row_ratio % self.no_ts != 0:
-            if self.col_to_row_ratio % self.no_ts >= self.no_ts/2:
-                self.col_to_row_ratio = self.col_to_row_ratio + (self.no_ts-self.col_to_row_ratio % self.no_ts)
-            else:
-                self.col_to_row_ratio = self.col_to_row_ratio - (self.col_to_row_ratio % self.no_ts)
+
+        # if self.col_to_row_ratio % (self.no_ts*2) != 0:
+        #     self.col_to_row_ratio = self.col_to_row_ratio + (2*self.no_ts-self.col_to_row_ratio %(2*self.no_ts))
+        # print(self.col_to_row_ratio)
         if L is None:
             self.L = int(np.sqrt(T / self.col_to_row_ratio))
             M = int(self.L * self.col_to_row_ratio)
             self.T = int(self.L * M)
-            
+
         else:
             self.L = L
             M = int(T/L)
             self.T = int(self.L*M)
             self.col_to_row_ratio = M/L
-      
+        
         if M % (2*self.no_ts) != 0:
-            M = M - M %(2*self.no_ts)
+            M = M + (2*self.no_ts -M %(2*self.no_ts))
             # if not persist_L: self.L = self.T//M 
             self.T = self.L * M
             self.col_to_row_ratio = M//self.L 
-            print ('Number of columns has to be even, thus T is changed into ', self.T)
+            print ('Number of columns has to be even and divisible by the number of time series, thus T is changed into ', self.T)
+  
         
         self.persist_L = persist_L
         self.gamma = gamma
@@ -87,12 +87,11 @@ class TSMM(object):
             # If it is a big update, do it at once
             last_model_size = self.models[updated_no_models - 1].M * self.models[updated_no_models - 1].N
 
-            if N/float(last_model_size) > self.gamma:
-               
+            if N/float(last_model_size) > self.gamma or len(self.models)>1:
                 self.updateTS(NewEntries[:,:])
                 self.fitModels()
                 return
-            # Otherwise, update it chunk by chunk (Because Incremental Update requires small updates (not really, need to be fixed))
+            # Otherwise, update it chunk by chunk (Because Incremental Update requires small updates when we have one sub-model)
             i = -1
             for i in range(int(ceil(Rows/(UpdateChunk)))):
                 self.updateTS(NewEntries[i * UpdateChunk: (i + 1) * UpdateChunk,:])
@@ -195,7 +194,7 @@ class TSMM(object):
             if M%self.no_ts != 0:
                 M -= M%self.no_ts
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start=int(start), SSVT=self.SSVT,
-                                               probObservation=self.p)
+                                               probObservation=self.p, no_ts = self.no_ts)
             M_ts = M//self.no_ts
             flattened_obs = initEntries[:M_ts*N,:].reshape([N,M], order = 'F')
             flattened_obs = flattened_obs[:,np.arange(M_ts*self.no_ts).reshape([self.no_ts,M_ts]).flatten('F')]
@@ -228,7 +227,7 @@ class TSMM(object):
             
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start= int(Model.start),
                                                TimesReconstructed=Model.TimesReconstructed + 1,
-                                               TimesUpdated=Model.TimesUpdated, SSVT=self.SSVT, probObservation=self.p)
+                                               TimesUpdated=Model.TimesUpdated, SSVT=self.SSVT, probObservation=self.p, no_ts = self.no_ts)
             
             self.models[ModelIndex].fit(pd.DataFrame(data={'t1': flattened_obs.flatten('F')}))
             self.ReconIndex = N * M + Model.start
@@ -240,16 +239,15 @@ class TSMM(object):
             N = Model.N
             M = Model.M
             if self.TimeSeriesIndex - ModelLength < N*self.no_ts:
-                pass
-
+                return
             else:
                 NewEntries = self.TimeSeries[-(self.TimeSeriesIndex - ModelLength)//self.no_ts:,:]
                 num_new_columns = self.no_ts*((NewEntries[:,0]).size//N)
                 flattened_obs = NewEntries[:(num_new_columns*N)//self.no_ts,:].reshape([N,num_new_columns], order = 'F')
                 flattened_obs = flattened_obs[:,np.arange(num_new_columns).reshape([self.no_ts,num_new_columns//self.no_ts]).flatten('F')]
                 D = flattened_obs.flatten('F')
-                p = int(len(D) / N)
-                D = D[:N * p]
+                # p = int(len(D) / N)
+                # D = D[:N * p]
                 Model.updateSVD(D, 'UP')
                 self.MUpdateIndex = Model.N * Model.M + Model.start
                 Model.updated = True

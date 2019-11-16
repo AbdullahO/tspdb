@@ -54,7 +54,7 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
     no_ts = len(value_columns)
 
     try: value_index = value_columns.index(value_column)
-    except: raise Exception('The value column selected is not indexed by the chosen pindex')
+    except: raise Exception('The value column %s selected is not indexed by the chosen pindex'%(value_column))
     
     if not isinstance(t1, (int, np.integer)):
         t1 = pd.to_datetime(t1)
@@ -318,7 +318,6 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
         Count = np.zeros(Result.shape)
         # query relevant tuples
         ## change to SUV
-        print(Result.shape)
         T_e = T//no_ts
         S = interface.get_S_row(index_name + '_s', [m1, m2 + 1], k,
                                          return_modelno=True)
@@ -358,7 +357,6 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
                 i *= (i>0)
                 length = finish - cursor
 
-            print(i,length, res.size, cursor, i_index, end,tsrow2,N2)
             Result[i:i + length] += 0.5 * res
             Count [i:i + length] += 1
         Result[Count == 1] *= 2

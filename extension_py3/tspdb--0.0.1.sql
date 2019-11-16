@@ -22,11 +22,14 @@ CREATE TABLE IF NOT EXISTS tspdb.pindices_columns (
 	value_column text  not NULL );
 
 CREATE TABLE IF NOT EXISTS tspdb.pindices_stats (
-  index_name text PRIMARY key ,
+  index_name text,
+  column_name text,
   number_of_observations bigint,
   number_of_trained_models bigint,
   imputation_score double precision,
-  forecast_score double precision
+  forecast_score double precision,
+  test_forecast_score double precision,
+   PRIMARY KEY (index_name, column_name)
 );
 
 
@@ -190,7 +193,7 @@ $$;
 
 
 
-CREATE or REPLACE FUNCTION pindices_stat(OUT index_name text, OUT number_of_observations bigint, OUT number_of_trained_models bigint, OUT imputation_score double precision,  OUT forecast_score double precision)
+CREATE or REPLACE FUNCTION pindices_stat(OUT index_name text,OUT column_name text, OUT number_of_observations bigint, OUT number_of_trained_models bigint, OUT imputation_score double precision,  OUT forecast_score double precision, OUT test_forecast_score double precision)
 RETURNS setof record LANGUAGE SQL AS $$
 select * from tspdb.pindices_stats;
 $$;

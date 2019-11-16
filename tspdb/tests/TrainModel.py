@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 
-from tspdb.src.pindex.pindex_managment import TSPI
+from tspdb.src.pindex.pindex_managment import TSPI, load_pindex
 from tspdb.src.pindex.predict import get_prediction, get_prediction_range
 
 from tspdb.src.database_module.sql_imp import SqlImplementation
@@ -12,30 +12,40 @@ from time import clock
 import pandas as pd
 
 T0 = 1000
-T = 90000
+T = 100000
 gamma = 0.5
 k = 2
+no_ts = 11
 time_series_table = ['mixturets2','ts','time']
-TSPD = TSPI(T = T, rank = k, interface= SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",
-               user="postgres",password="0505") ,value_column = ['ts','ts_7','ts_9'],time_series_table_name = time_series_table[0], time_column = time_series_table[2])
+interface= SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",
+               user="postgres",password="0505") 
 
-# TSPD.update_model(np.arange(1,10**6+1))
-# TSPD.write_model(1)
+
+TSPD = TSPI(T = T, rank = k,  interface= SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",
+               user="postgres",password="0505") ,value_column = ['ts_%s'%i for i in range(no_ts)],time_series_table_name = time_series_table[0], time_column = time_series_table[2])
+N = 10**5
+data = np.zeros([N,no_ts])
+for i in range(no_ts):
+	data[:,i] = i*np.ones(N)
+
+TSPD.update_model(data)
+TSPD.write_model(1)
+
+N = 10**2
+data = np.zeros([N,no_ts])
+for i in range(no_ts):
+	data[:,i] = i*np.ones(N)
 
 
 TSPD.create_index()
+TSPD2 = load_pindex(interface,'tspdb.pindex_mixturets2')
+
 get_prediction('tspdb.pindex_mixturets2', 'mixturets2', 'ts_9', TSPD.db_interface, 99942)
 # df = pd.DataFrame(data= {'ts': np.arange(10**6)})
 # TSPD.db_interface.create_table('ts_basic2', df, include_index = True)
 # TSPD.update_model(np.arange(1,10**7+1))
 # TSPD.write_model()
 get_prediction_range('tspdb.pindex_mixturets2', 'mixturets2', 'ts_9', TSPD.db_interface, 0,10)
-
-
-CREATE or REPLACE FUNCTION test() RETURNS void  AS $$   
-try: 1+1 
-except: print(1) 
-$$LANGUAGE plpython3u
 
 # print 'Done creating index ..'
 # model = TSPD.ts_model

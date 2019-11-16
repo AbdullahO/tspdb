@@ -189,12 +189,16 @@ class plpyimp(Interface):
         queried values for the selected range
         """
         
+        if value_index is None:
+            times_series_predicate = ''
+        else:
+            times_series_predicate = 'time_series = %s and'%value_index
         
         columns = 'v'+ ',v'.join([str(i) for i in range(1, k + 1)])
         if return_modelno :
             columns = 'modelno,'+ columns
-        query = "SELECT " + columns + " FROM " + table_name + " WHERE  time_series = %s and tscolumn >= %s and tscolumn <= %s and (modelno >= %s and modelno <= %s)   order by row_id; "
-        query = query %(value_index, tscol_range[0], tscol_range[1], models_range[0], models_range[1])
+        query = "SELECT " + columns + " FROM " + table_name + " WHERE  "+ times_series_predicate+" tscolumn >= %s and tscolumn <= %s and (modelno >= %s and modelno <= %s)   order by row_id; "
+        query = query %( tscol_range[0], tscol_range[1], models_range[0], models_range[1])
 
         # query = "SELECT " + columns + " FROM " + table_name + " WHERE tscolumn >= %s and tscolumn <= %s order by row_id; "
         # query = query %(tscol_range[0], tscol_range[1])
@@ -526,6 +530,7 @@ class plpyimp(Interface):
         """
 
         row = ["'"+str(i)+"'" if (type(i) is str or type(i) == pd.Timestamp) else i for i in row ]
+        row = ["NULL" if pd.isna(i)  else i for i in row ]
         row = [str(i) for i in row]
         if columns is not None: columns = '('+','.join(columns)+')'
         else: columns = ''
@@ -626,9 +631,12 @@ class plpyimp(Interface):
 
     def create_insert_trigger(self, table_name, index_name):
         
+        # function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \n \
+        # try: plpy.execute("select update_pindex('%s');") \n \
+        # except: plpy.notice('Index is not updated, insert is carried forward') \n
+        # $$LANGUAGE plpython3u;'''
         function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \n \
-        try: plpy.execute("select update_pindex('%s');") \n \
-        except: plpy.notice('Index is not updated, insert is carried forward') \n
+        plpy.execute("select update_pindex('%s');")\
         $$LANGUAGE plpython3u;'''
         self.engine.execute(function %(index_name, index_name))
         query = "CREATE TRIGGER tspdb_update_pindex_tg AFTER insert ON " + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "

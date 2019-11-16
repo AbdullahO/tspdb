@@ -117,103 +117,13 @@ def ts_table_tests(init_points = 10**4 , update_points = [1000,100,5000,10000], 
 		init_points += points
 		print ('successfully updated %s points' %points)
 
-	# start = pd.to_datetime('2015-01-01 00:00:00')
-	# end = pd.to_datetime('2018-01-01 00:00:00')
-	# df = pd.DataFrame(data ={'ts': np.arange(init_points).astype('float')}) 
-	# timestamps= pd.DatetimeIndex(1000000000.*(np.random.randint(start.value/10**9,end.value/10**9, init_points)))
-	# df.index = np.sort(timestamps)
-	# interface.create_table('ts_basic_ts2', df, 'timestamp', index_label='timestamp')
-
 	
 def create_pindex_test(interface,table_name, T,T_var, k ,k_var, direct_var,value_column= ['ts'], index_name = None , agg_interval = 1., col_to_row_ratio= 10, time_column = 'row_id'):
-	interface.engine.notice(table_name)
+
 	T0 = 1000
 	gamma = 0.5
 	if index_name is None: index_name = 'pindex'
 	value_column = ','.join(value_column)
-	interface.engine.execute('''SELECT create_pindex('%s','%s','{%s}','%s', "T" => %s,"t_var" =>%s, k => %s, k_var => %s, agg_interval => %s, var_direct => %s)'''%(table_name,time_column, value_column, index_name, T, T_var, k,k_var, agg_interval, direct_var))
+	interface.engine.execute('''SELECT create_pindex('%s','%s','{%s}','%s', "T" => %s,"t_var" =>%s, k => %s, k_var => %s, agg_interval => %s, var_direct => %s, col_to_row_ratio => %s)'''%(table_name,time_column, value_column, index_name, T, T_var, k,k_var, agg_interval, direct_var, col_to_row_ratio))
 
-	
-
-def range_prediction_queries_test(index_name, table_name, max_):
-	
-	T1 = [0,0,max_-10, max_-15000, max_] + list((max_+1000) * np.random.random(10))
-	T2 = [10, 10**5, max_-1, max_, max_ +10] + list((max_+1000) * np.random.random(10))
-	T1 = np.array(T1).astype(int)
-	T2 = np.array(T2).astype(int)
-	for t1_,t2_ in zip(T1,T2):
-		t1,t2 = sorted([t1_,t2_])
-		# print (')
-		# try:
-		get_prediction_range(index_name, table_name, 'ts', 'row_id', interface, int(t1),int(t2), uq = True)
-		# except: print('failure to query  range between %s and %s' % (t1,t2))
-
-def prediction_queries_test(index_name, table_name, max_):
-	
-	T1 = [0,max_-10, max_-1000, max_+1, max_+10] + list((max_+1000) * np.random.random(50))
-	T1 = np.array(T1).astype(int)
-
-	for t1 in T1:
-		# try: 
-			get_prediction(index_name, table_name, 'ts', 'row_id', interface, int(t1), uq = True)
-		# except: print('failure to query  point  %s' %t1)
-
-def prediction_queries_accuracy_test(max_, index_name = "tspdb.ts_basic2_pindex2", table_name = "ts_basic2"):
-	T1 = [100000,max_-1000, max_] + list((max_-1) * np.random.random(100))
-	T1 = np.array(T1).astype(int)
-	
-	for t1 in T1:
-		print ('t = '+str(t1))
-		A,_ = get_prediction(index_name, table_name, 'ts', 'row_id', interface, int(t1))
-		print (t1,A )
-		assert abs(A - t1) < 1e-3
-	
-
-def range_prediction_queries_accuracy_test( index_name, file_name, table_name , value_column, max_ ):
-	max_ = interface.engine.execute('Select "last_TS_inc" from tspdb.'+index_name+'_meta').fetchone()[0]
-	T1 = [0, max_]
-	T2 = [max_, 10**5-1]
-	T1 = np.array(T1).astype(int)
-	T2 = np.array(T2).astype(int)
-	df = pd.read_csv('testdata/tables/%s.csv'%file_name) 
-	means = df['means']
-	var = df['var']
-	alpha = norm.ppf(1./2 + 95./200)
-
-	for t1_,t2_ in zip(T1,T2):
-		t1,t2 = sorted([t1_,t2_])
-		M = np.array(interface.engine.execute("select * from predict_range(%s, %s, %s,%s, %s, uq => True)", (table_name, value_column,int(t1),int(t2),index_name)).fetchall()).astype(np.float)
-		A = M[:,0]
-		est_var = (abs(M[:,0] - M[:,1])/alpha)**2
-		print (t1,t2,' rmse: ',np.sqrt(np.mean(np.square(A - means[t1:t2+1]))), np.sqrt(np.mean(np.square(est_var - var[t1:t2+1]))))
-		print (t1,t2,'r2: ',r2_score(means[t1:t2+1],A ), r2_var(var[t1:t2+1],est_var, df['ts'][t1:t2+1]))
-		# print('first ten (predicted, actual) points for var: ', [(i,j) for i,j in zip(var[t1: t1+10],est_var[:10])])
-		#assert abs(np.max(A - np.arange(t1,t2+1))) < 1e-3
-
-
-def prediction_queries_latency_test():
-	setup = '''import numpy as np
-from tspdb.src.database_module.sql_imp import SqlImplementation
-from tspdb.src.pindex.predict import get_prediction_range, get_prediction
-interface = SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",user="aalomar",password="AAmit32lids")
-	'''
-	stmt1 = '''interface.engine.execute("select * from predict('ts_basic_5', 'ts', 10, 'ts_basic5_pindex', uq => false)")'''
-	stmt2 = '''interface.engine.execute("select * from predict('ts_basic_5', 'ts', 10, 'ts_basic5_pindex', uq => true)")'''
-	stmt3 = '''interface.engine.execute("select * from predict_range('ts_basic_5', 'ts', 10,110, 'ts_basic5_pindex', uq => False)")'''
-	
-	
-	stmtA = '''interface.engine.execute("select ts from ts_basic_5 where time = 10") '''
-	stmtB = '''interface.engine.execute("select ts from ts_basic_5 where time >= 10 and time <= 110 ") '''
-	
-	print ('(test1 pindex: point query )	  	imp query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt1, number =10000)/timeit.timeit(setup = setup,stmt= stmtA, number =10000)))
-	print ('(test2 pindex: point query with uq ) 	imp query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt2, number =10000)/timeit.timeit(setup = setup,stmt= stmtA, number =10000)))
-	print ('(test3 pindex: range query 100 points )		imp query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt3, number =10000)/timeit.timeit(setup = setup,stmt= stmtB, number =10000)))
-		
-	stmt1 = '''interface.engine.execute("select * from predict('ts_basic_5', 'ts', 99995, 'ts_basic5_pindex', uq => false)")'''
-	stmt2 = '''interface.engine.execute("select * from predict('ts_basic_5', 'ts', 99995, 'ts_basic5_pindex', uq => true)")'''
-	stmt3 = '''interface.engine.execute("select * from predict_range('ts_basic_5', 'ts', 99995,99995+100, 'ts_basic5_pindex', uq => False)")'''
-	
-	print ('(test1 pindex: point query)	  	Forecast query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt1, number =1000)/timeit.timeit(setup = setup,stmt= stmtB, number =1000)))
-	print ('(test2 pindex: point query with uq) 	Forecast query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt2, number =1000)/timeit.timeit(setup = setup,stmt= stmtA, number =1000)))
-	print ('(test3 pindex: range query 100 points)		Forecast query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt3, number =1000)/timeit.timeit(setup = setup,stmt= stmtB, number =1000)))
 
