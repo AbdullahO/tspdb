@@ -1,4 +1,4 @@
-
+# Contributing
 Thank you for your interest in contributing to tspDB!
 
 You can help in many ways! We would like all the help we can get such as:
