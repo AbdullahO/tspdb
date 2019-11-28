@@ -1,40 +1,40 @@
 import sys
 import numpy as np
 
-from tspdb.src.pindex.pindex_managment import TSPI, load_pindex
+from tspdb.src.pindex.pindex_managment import TSPI, load_pindex_u
 from tspdb.src.pindex.predict import get_prediction, get_prediction_range
 
 from tspdb.src.database_module.sql_imp import SqlImplementation
-from tspdb.src.database_module.plpy_imp import plpyimp
 
-from sklearn.metrics import r2_score
-from time import clock
-import pandas as pd
-
-T0 = 1000
-T = 100000
-gamma = 0.5
-k = 2
-no_ts = 11
-time_series_table = ['mixturets2','ts','time']
+time_series_table = ['mixturets_var','ts','time']
 interface= SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",
                user="postgres",password="0505") 
+T0 = 1000
+T = 2000000
+gamma = 0.5
+k = 2
+no_ts = 3
+# get_prediction_range('tspdb.pindex_mixturets2', 'mixturets2', 'ts_0', interface, 20000,20020)
+# get_prediction('tspdb.pindex_mixturets2', 'mixturets2', 'ts_0', interface, 100000+1)
+N = 10**6
+data = np.zeros([N,no_ts])
+for i in range(no_ts):
+	# data[:,i] = (i+1)*np.arange(N)+np.random.normal(0,0.1,N)
+	data[:,i] = i 
 
 
 TSPD = TSPI(T = T, rank = k,  interface= SqlImplementation(driver="postgresql", host="localhost", database="querytime_test",
-               user="postgres",password="0505") ,value_column = ['ts_%s'%i for i in range(no_ts)],time_series_table_name = time_series_table[0], time_column = time_series_table[2])
-N = 10**5
-data = np.zeros([N,no_ts])
-for i in range(no_ts):
-	data[:,i] = i*np.ones(N)
+               user="postgres",password="0505") ,value_column = ['ts_1','ts_7','ts_9'],time_series_table_name = time_series_table[0], time_column = time_series_table[2])
 
 TSPD.update_model(data)
 TSPD.write_model(1)
 
-N = 10**2
+TSPD2 = load_pindex(interface,'tspdb.pindex_mixturets_var')
+TSPD2 = load_pindex2(interface,'tspdb.pindex_mixturets_var')
+N2 = 10**2
 data = np.zeros([N,no_ts])
 for i in range(no_ts):
-	data[:,i] = i*np.ones(N)
+	data[:,i] = (i+1)*np.arange(N,N+N2)+np.random.normal(0,0.1,N)
 
 
 TSPD.create_index()

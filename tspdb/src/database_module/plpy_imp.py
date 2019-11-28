@@ -124,7 +124,7 @@ class plpyimp(Interface):
         result = [row['coeffvalue'] for row in result]
         return np.array(result)
 
-    def get_U_row(self, table_name, tsrow_range, models_range,k, return_modelno = False):
+    def get_U_row(self, table_name, tsrow_range, models_range,k, return_modelno = False, return_weights_decom = False):
 
         """
         query the U matrix from the database table '... U_table' created via the prediction index. the query depend on the ts_row
@@ -155,6 +155,8 @@ class plpyimp(Interface):
         columns = 'u'+ ',u'.join([str(i) for i in range(1, k + 1)])
         if return_modelno :
             columns = 'modelno,'+ columns
+        if return_weights_decom:
+            columns = columns + ',uw'+ ',uw'.join([str(i) for i in range(1, k + 1)])
         query = "SELECT "+ columns +" FROM " + table_name + " WHERE tsrow >= %s and tsrow <= %s and (modelno >= %s and modelno <= %s) order by row_id; "
         query = query %(tsrow_range[0], tsrow_range[1], models_range[0], models_range[1])
         result = self.engine.execute(query)
@@ -163,7 +165,7 @@ class plpyimp(Interface):
         #return pd.DataFrame(result).values
         return np.array(result)
 
-    def get_V_row(self, table_name, tscol_range,k,value_index ,models_range = [0,10**10] ,return_modelno = False):
+    def get_V_row(self, table_name, tscol_range,k,value_index ,models_range = [0,10**10] ,return_modelno = False, return_weights_decom = False):
 
 
         """
@@ -197,6 +199,8 @@ class plpyimp(Interface):
         columns = 'v'+ ',v'.join([str(i) for i in range(1, k + 1)])
         if return_modelno :
             columns = 'modelno,'+ columns
+        if return_weights_decom:
+            columns = columns + ',vw'+ ',vw'.join([str(i) for i in range(1, k + 1)])
         query = "SELECT " + columns + " FROM " + table_name + " WHERE  "+ times_series_predicate+" tscolumn >= %s and tscolumn <= %s and (modelno >= %s and modelno <= %s)   order by row_id; "
         query = query %( tscol_range[0], tscol_range[1], models_range[0], models_range[1])
 
@@ -211,7 +215,7 @@ class plpyimp(Interface):
 
 
 
-    def get_S_row(self, table_name, models_range, k ,return_modelno = False):
+    def get_S_row(self, table_name, models_range, k ,return_modelno = False, return_weights_decom = False):
 
         """
         query the S matrix from the database table '... s_table' created via the index. the query depend on the model
@@ -239,6 +243,8 @@ class plpyimp(Interface):
         columns = 's'+ ',s'.join([str(i) for i in range(1, k + 1)])
         if return_modelno :
             columns = 'modelno,'+ columns
+        if return_weights_decom:
+            columns = columns + ',sw'+ ',sw'.join([str(i) for i in range(1, k + 1)])
         # if models_range is None:
         #     query = "SELECT "+ columns +" FROM " + table_name + " WHERE tscolumn >= %s and tscolumn <= %s ; "
         query = "SELECT "+ columns +" FROM " + table_name + " WHERE modelno >= %s and modelno <= %s order by modelno;"

@@ -24,7 +24,7 @@ class SVDModel(object):
     #                               the latest data-points for prediction
     def __init__(self, seriesToPredictKey, kSingularValuesToKeep, N, M,updated = True, probObservation=1.0, svdMethod='numpy', otherSeriesKeysArray=[],\
      includePastDataOnly=True, start = 0, TimesUpdated = 0, TimesReconstructed =0, SSVT = False , no_ts = 1, forecast_model_score = None,forecast_model_score_test = None,\
-      imputation_model_score = None):
+      imputation_model_score = None, norm_mean = [], norm_std = []):
 
         self.seriesToPredictKey = seriesToPredictKey
         self.otherSeriesKeysArray = otherSeriesKeysArray
@@ -37,7 +37,8 @@ class SVDModel(object):
         self.TimesReconstructed = TimesReconstructed
         self.kSingularValues = kSingularValuesToKeep
         self.svdMethod = svdMethod
-
+        self.norm_mean = norm_mean
+        self.norm_std = norm_std
         self.Uk = None
         self.Vk = None
         self.sk = None
@@ -58,12 +59,17 @@ class SVDModel(object):
             imputation_model_score = np.zeros(no_ts)
         if forecast_model_score_test is None:
             forecast_model_score_test = np.full(no_ts,np.nan)
-        assert len(imputation_model_score) == no_ts 
-        assert len(forecast_model_score) == no_ts  
-        assert len(forecast_model_score_test) == no_ts     
+
+            
         self.forecast_model_score = forecast_model_score
         self.forecast_model_score_test = forecast_model_score_test
         self.imputation_model_score = imputation_model_score
+        assert len(self.imputation_model_score) == no_ts 
+        assert len(self.forecast_model_score) == no_ts  
+        assert len(self.forecast_model_score_test) == no_ts 
+        assert len(self.norm_std) == no_ts 
+        assert len(self.norm_mean) == no_ts 
+
     # run a least-squares regression of the last row of self.matrix and all other rows of self.matrix
     # sets and returns the weights
     # DO NOT call directly
@@ -108,7 +114,7 @@ class SVDModel(object):
         if self.SSVT: soft_threshold = svdMod.next_sigma
         matrix = tsUtils.matrixFromSVD(self.skw, self.Ukw, self.Vkw, soft_threshold=soft_threshold)
         newMatrixPInv = tsUtils.pInverseMatrixFromSVD(self.skw, self.Ukw, self.Vkw,soft_threshold=soft_threshold)
-        self.weights = np.dot(newMatrixPInv.T, self.matrix[-1,:].T)
+        self.weights = np.dot(newMatrixPInv.T, self.lastRowObservations)
         for i in range(self.no_ts):
             self.forecast_model_score[i] = r2_score(self.lastRowObservations[i::self.no_ts], np.dot(matrix[:,i::self.no_ts].T,self.weights))
 
@@ -227,7 +233,8 @@ class SVDModel(object):
             diff = 0.5*(min + max)
             D[np.isnan(D)] = diff
         else: D[np.isnan(D)] = 0
-        D = D.reshape([self.N,int(len(D)/self.N)])
+        D = D.reshape([self.N,int(len(D)/self.N)], order = 'F')
+
 
         assert D.shape[0] == self.N
         assert D.shape[1] <= D.shape[0]
@@ -239,7 +246,6 @@ class SVDModel(object):
 
         elif method == 'folding-in':
             self.Uk, self.sk, self.Vk = tsUtils.updateSVD(D, self.Uk, self.sk ,self.Vk )
-
             self.M = self.Vk.shape[0]
             self.Ukw, self.skw, self.Vkw = tsUtils.updateSVD(D[:-1, :], self.Ukw, self.skw, self.Vkw)
         # elif method == 'Full':

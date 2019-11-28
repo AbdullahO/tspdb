@@ -8,7 +8,7 @@ from tspdb.src import tsUtils
 
 class SVDWrapper:
 
-    def __init__(self, matrix, method='numpy', threshold = 0.95):
+    def __init__(self, matrix, method='numpy', threshold = 0.90):
         if (type(matrix) != np.ndarray):
             raise Exception('SVDWrapper required matrix to be of type np.ndarray')
 
@@ -38,8 +38,8 @@ class SVDWrapper:
         
         S = np.cumsum(self.s**2)
         S = S/S[-1]
+
         k = np.argmax(S>self.threshold)+1
-        k = np.where(S>self.threshold)[0][0]+1
         # correct the dimensions of V
         self.V = self.V.T
         return k

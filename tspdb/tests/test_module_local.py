@@ -203,7 +203,7 @@ def metrics_test(interface):
 	db_time = []
 	insert_time_2 ,insert_time = [], []
 	predict_time, select_time,predict_time_var, forecast_time_var, forecast_time, forecast_range_time_var, forecast_range_time, predict_range_time_var, predict_range_time, select_time_range = [],[],[],[],[],[],[],[],[],[]
-	for ii, ts in enumerate([1,2,3,5,8,10,12]):
+	for ii, ts in enumerate([1]):
 		print(ts)
 		df = pd.DataFrame()
 		for i in range(ts):
@@ -231,7 +231,7 @@ def metrics_test(interface):
 		
 		#update test
 		batch = 100
-		no_batches = 100
+		no_batches = 1000
 		insert_time_2.append(0)
 		insert_time.append(0)
 		for i in range(no_batches) :

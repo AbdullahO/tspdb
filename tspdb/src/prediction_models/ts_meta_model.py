@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from  tspdb.src.prediction_models.ts_svd_model import SVDModel
 from math import ceil
+from sklearn.preprocessing import StandardScaler
 
 class TSMM(object):
     # kSingularValuesToKeep:    (int) the number of singular values to retain
@@ -10,7 +11,7 @@ class TSMM(object):
     # gamma:                    (float) (0,1) fraction of T after which the model is updated
     # col_to_row_ratio:         (int) the ration of no. columns to the number of rows in each sub-model
 
-    def __init__(self, kSingularValuesToKeep=None, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=1.0, L=None, model_table_name='', persist_L = False, no_ts = 1):
+    def __init__(self, kSingularValuesToKeep=None, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=1.0, L=None, model_table_name='', persist_L = False, no_ts = 1, normalize = True):
         self.kSingularValuesToKeep = kSingularValuesToKeep
         
         self.no_ts = no_ts
@@ -37,7 +38,7 @@ class TSMM(object):
             self.col_to_row_ratio = M//self.L 
             print ('Number of columns has to be even and divisible by the number of time series, thus T is changed into ', self.T)
   
-        
+        self.normalize = normalize
         self.persist_L = persist_L
         self.gamma = gamma
         self.models = {}
@@ -64,13 +65,15 @@ class TSMM(object):
         several entries and then feed them to the update_ts and fit function
         :param NewEntries: Entries to be included in the new model
         """
-        # Define update chunck for the update SVD function (Not really needed, should be resolved once the update function is fixed)
         assert len(NewEntries.shape) == 2
         assert NewEntries.shape[1] == self.no_ts
+
+        # Define update chunck for the update SVD function (Not really needed, should be resolved once the update function is fixed)
         if len(self.models) == 1 and NewEntries.size < self.T / 2:
             UpdateChunk = 20 * int(np.sqrt(self.T0))//self.no_ts
         else:
-            UpdateChunk = int(self.T / (2 * (1+self.col_to_row_ratio) * 0.85))//self.no_ts
+            UpdateChunk = int(self.T/(4*self.col_to_row_ratio))//self.no_ts
+  
 
         # find if new models should be constructed
         N = NewEntries.size
@@ -84,10 +87,11 @@ class TSMM(object):
 
         # if no new models are to be constructed
         if current_no_models == updated_no_models:
+            print('same models')
             # If it is a big update, do it at once
             last_model_size = self.models[updated_no_models - 1].M * self.models[updated_no_models - 1].N
 
-            if N/float(last_model_size) > self.gamma or len(self.models)>1:
+            if N/float(last_model_size) > self.gamma: # or len(self.models)>1:
                 self.updateTS(NewEntries[:,:])
                 self.fitModels()
                 return
@@ -139,7 +143,7 @@ class TSMM(object):
 
         self.TimeSeriesIndex += N
 
-        if self.TimeSeriesIndex == N:
+        if self.TimeSeriesIndex == N or self.TimeSeries is None:
             self.TimeSeries = NewEntries
 
         elif self.TimeSeries.size < self.T:
@@ -150,7 +154,6 @@ class TSMM(object):
 
         else:
             self.TimeSeries[:num_ts_obs-num_new_rows,:] = self.TimeSeries[-num_ts_obs + num_new_rows:,:]
-
             self.TimeSeries[-num_new_rows:,:] = NewEntries
 
         if self.TimeSeries.shape[0] > num_ts_obs:
@@ -193,15 +196,25 @@ class TSMM(object):
             M = int(initEntries.size / N)
             if M%self.no_ts != 0:
                 M -= M%self.no_ts
-            self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start=int(start), SSVT=self.SSVT,
-                                               probObservation=self.p, no_ts = self.no_ts)
+
             M_ts = M//self.no_ts
-            flattened_obs = initEntries[:M_ts*N,:].reshape([N,M], order = 'F')
+            inc_obs = initEntries[:M_ts*N,:]
+            if self.normalize:
+                scaler = StandardScaler()
+                inc_obs = scaler.fit_transform(inc_obs)
+                norm_means = scaler.mean_
+                norm_std = scaler.scale_
+            else:
+                norm_means = np.zeros(self.no_ts)
+                norm_std = np.ones(self.no_ts)
+
+            self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start=int(start), SSVT=self.SSVT,
+                                               probObservation=self.p, no_ts = self.no_ts, norm_mean = norm_means, norm_std = norm_std)
+            flattened_obs = inc_obs.reshape([N,M], order = 'F')
             flattened_obs = flattened_obs[:,np.arange(M_ts*self.no_ts).reshape([self.no_ts,M_ts]).flatten('F')]
-            
-            
             self.models[ModelIndex].fit(pd.DataFrame(data={'t1': flattened_obs.flatten('F')}))
-            self.ReconIndex = N * M + start
+            old_mupdate_index = self.MUpdateIndex
+            self.ReconIndex = max(N * M + start, old_mupdate_index)
             self.MUpdateIndex = self.ReconIndex
 
             if lenEntriesSinceCons == self.T // 2 or ModelIndex == 0:
@@ -210,7 +223,7 @@ class TSMM(object):
         Model = self.models[ModelIndex]
         lenEntriesSinceCons = self.TimeSeriesIndex - self.ReconIndex
         ModelLength = Model.N * Model.M + Model.start
-        if (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma) or (self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to create new model
+        if (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma) or (self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to recompute SVD
             TSlength = self.TimeSeriesIndex - Model.start
             if self.persist_L: N = self.L
             else: N = int(np.sqrt(TSlength/self.col_to_row_ratio))
@@ -219,22 +232,29 @@ class TSMM(object):
                 M -= M%self.no_ts
 
             M_ts = M//self.no_ts
-            
             TSeries = self.TimeSeries[-TSlength//self.no_ts:,:]
             TSeries = TSeries[:(N * M)//self.no_ts,:]
+            if self.normalize:
+                scaler = StandardScaler()
+                TSeries = scaler.fit_transform(TSeries)
+                norm_means = scaler.mean_
+                norm_std = scaler.scale_
+            else:
+                norm_means = np.zeros(self.no_ts)
+                norm_std = np.ones(self.no_ts)
+
             flattened_obs = TSeries.reshape([N,M], order = 'F')
             flattened_obs = flattened_obs[:,np.arange(M).reshape([self.no_ts,M_ts]).flatten('F')]
             
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start= int(Model.start),
                                                TimesReconstructed=Model.TimesReconstructed + 1,
-                                               TimesUpdated=Model.TimesUpdated, SSVT=self.SSVT, probObservation=self.p, no_ts = self.no_ts)
+                                               TimesUpdated=Model.TimesUpdated, SSVT=self.SSVT, probObservation=self.p, no_ts = self.no_ts, norm_mean = norm_means, norm_std = norm_std)
             
             self.models[ModelIndex].fit(pd.DataFrame(data={'t1': flattened_obs.flatten('F')}))
             self.ReconIndex = N * M + Model.start
             self.MUpdateIndex = self.ReconIndex
 
         else:
-
             Model = self.models[ModelIndex]
             N = Model.N
             M = Model.M
@@ -242,12 +262,16 @@ class TSMM(object):
                 return
             else:
                 NewEntries = self.TimeSeries[-(self.TimeSeriesIndex - ModelLength)//self.no_ts:,:]
+                if self.normalize:
+                    NewEntries = NewEntries - Model.norm_mean
+                    NewEntries = NewEntries / Model.norm_std
                 num_new_columns = self.no_ts*((NewEntries[:,0]).size//N)
                 flattened_obs = NewEntries[:(num_new_columns*N)//self.no_ts,:].reshape([N,num_new_columns], order = 'F')
                 flattened_obs = flattened_obs[:,np.arange(num_new_columns).reshape([self.no_ts,num_new_columns//self.no_ts]).flatten('F')]
                 D = flattened_obs.flatten('F')
                 # p = int(len(D) / N)
                 # D = D[:N * p]
+
                 Model.updateSVD(D, 'UP')
                 self.MUpdateIndex = Model.N * Model.M + Model.start
                 Model.updated = True
@@ -278,7 +302,7 @@ class TSMM(object):
                     denoised_columns_swapped = denoised_matrix[:,np.arange(M).reshape([M//self.no_ts, self.no_ts]).flatten('F')]
                     denoised_ts = denoised_columns_swapped.reshape([denoised_columns_swapped.size//self.no_ts,self.no_ts],order ='F')
                     denoised_index = RIndex-x1//self.no_ts
-                    denoised[RIndexS[0]:RIndexS[1],:] += denoised_ts[denoised_index[0]:denoised_index[1],:]
+                    denoised[RIndexS[0]:RIndexS[1],:] += (denoised_ts[denoised_index[0]:denoised_index[1],:]*Model.norm_std+Model.norm_mean)
                     count[RIndexS[0]:RIndexS[1],:] += 1
             denoised[count == 0] = np.nan
             denoised[count > 0] = denoised[count > 0] / count[count > 0]
