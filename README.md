@@ -97,12 +97,12 @@ SELECT test_tspdb();
 ```
 if you get at the last line
 ```
-	NOTICE:  Pindices successfully created
+NOTICE:  Pindices successfully created
 ```
 then the test has passed. Now we can check the predictive indices the test has created through
 
 ```sql
-	SELECT * FROM list_pindices();
+SELECT * FROM list_pindices();
 ```
 
 You will see the three predictive indices created by the test. Now let's create our own predictive index, which we will call 'pindex1' on the time series table `mixturets2`. The prediction index is created on the time column `time` and the value column `ts_7`:
