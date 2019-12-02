@@ -84,37 +84,60 @@ then tspdb should be working properly
 
 this shows you a list of the predictive indices built in the aforementioned test
 
-### Example use cases
-..... To be updated later .....
+## Getting Started
+The main functionalities of tspDB is enabling predictive queries, which are enabled via creating a prediction index on your time series table.
+The index is created via the function `create_pindex()`. which you can use as follow:
 
-1- try to create another pindex: 
-				
-	select create_pindex('mixturets2','time','ts_7','pindex1');
-2- list pindices
-				
-	select * from list_pindices();
+``` sql
+select create_pindex('tablename','time_column_name','{"value_column_name"}','index_name')
+``` 
+To get you familiar with tspDB capabilities, we provided a testing function that will create a set of time series tables in youe database. The test function will also create several prediction indices. Run the function from your postgres terminal
+```sql
+SELECT test_tspdb();
+```
+if you get at the last line
+```
+NOTICE:  Pindices successfully created
+```
+then the test has passed. Now we can check the predictive indices the test has created through
 
-3- insert and list
+```sql
+SELECT * FROM list_pindices();
+```
 
-	insert into mixturets2 values (100001, 27.0,27.0,27.0,27.0,1);
-	select * from list_pindices();
+You will see the three predictive indices created by the test. Now let's create our own predictive index, which we will call 'pindex1' on the time series table `mixturets2`. The prediction index is created on the time column `time` and the value column `ts_7`:
+```sql
+SELECT create_pindex('mixturets2','time','{"ts_7"}','pindex1');
+```
+we can see our newly created index by running `list_pindices` again:
+```sql
+SELECT * FROM list_pindices();
+```
 
-4- predict with confidence interval and two methods for uncertainty quantification
-				
-	select * from predict('mixturets2','ts_7',10,'pindex1');
-		
-	select * from predict('mixturets2','ts_7',10,'pindex1', uq_method=> 'Chebyshev');
-		
-	select * from predict('mixturets2','ts_7',10,'pindex1', uq_method=> 'Chebyshev', c => 50);
+Let's now use that prediction index to prodice some *predictions*! let's for example predict at a time t that exists in the database. Effectively, we are *denoising* the existing observation or *imputing* a null observation. For example, at time 1, `ts_7` has a null value as  you can see by running:
+```sql
+SELECT ts_7 FROM mixturets2 WHERE time = 1;
+```
+Let's *impute* this point by running:
+```sql
+SELECT * FROM predict('mixturets2','ts_7',10,'pindex1');
+```
+Which will return predictions as well as upper an lower bound for a 95% confidence interval. We can get a tighter bound with lower confidence by changing the confidence interval to, say 80%: 
+```sql
+SELECT * FROM predict('mixturets2','ts_7',10,'pindex1', c=> 80);
+```
+The prediction index also support forecasting queries using the same function. For example, you can forecast the value of column `ts_7` at time 100010, ten points ahead of what exists in the database by running:
+```sql
+SELECT * FROM predict('mixturets2','ts_7',100010,'pindex1');
+```
+In a similar fashion, you can execute range predictive queries using `predict_range()`. for example, we can *impute* the first hundered points of `ts_7` using:
 
-5- predict range
-				
-	select * from predic_range('mixturets2','ts_7',10,50,'pindex1', c => 90);
+```sql
+SELECT * FROM predict_range('mixturets2','ts_7',0,100,'pindex1');
+```
 
-6- to predict and compare prediction and means:
+or *forecast* the next 10 points using:
 
-	select time, ts_7, prediction, means from mixturets2  left join  predict('mixturets2','ts',time::int,'pindex1') on true where time > 1000 and time < 1100;
-
-
-# Examples
-# Documentaion:
+```sql
+SELECT * FROM predict_range('mixturets2','ts_7',100001,100010,'pindex1');
+```
