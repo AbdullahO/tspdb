@@ -1,7 +1,7 @@
 
 import numpy as np
 from tspdb.src.pindex.predict import get_prediction_range, get_prediction
-from tspdb.src.pindex.pindex_managment import TSPI, load_pindex
+from tspdb.src.pindex.pindex_managment import TSPI
 from tspdb.src.pindex.pindex_utils import  index_ts_mapper
 import time
 import timeit
