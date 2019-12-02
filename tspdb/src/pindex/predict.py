@@ -18,7 +18,7 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
     index_name: string 
         name of the PINDEX used to query the prediction
 
-    index_name: table_name 
+    table_name: string 
         name of the time series table in the database
 
     value_column: string
@@ -51,6 +51,8 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
         The deviation from the mean to get the desired confidence level 
     """
     # query pindex parameters
+
+
     T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col, value_columns = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column","indexed_column"])[0]
     last_model -= 1
     value_columns = value_columns.split(',')
@@ -167,7 +169,7 @@ def get_prediction(index_name, table_name, value_column, interface, t, uq = True
     
     """
     # query pindex parameters
-
+    
     T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col, value_columns = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column","indexed_column"])[0]
     last_model -= 1
     value_columns = value_columns.split(',')
@@ -275,9 +277,10 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
     else: N2, start2, M2 = result[0]
     
     # query normalization constants
-    col_norm_mean = 'norm_mean_%s'%value_column 
-    col_norm_std = 'norm_std_%s'%value_column 
+    col_norm_mean = 'norm_mean'
+    col_norm_std = 'norm_std' 
     norm = interface.query_table( index_name+'_m',[col_norm_mean, col_norm_std], 'modelno >=' + str(m1) +' and modelno <=' + str(m2+1)+' order by modelno')
+
     # Remove when the model writing is fixed (It should write integers directly)
     start1, start2,N1, N2, M1, M2 =  map(int, [start1, start2,N1, N2, M1, M2])
     
@@ -309,9 +312,9 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
                                          return_modelno=True)
         p = np.dot(U[U[:, 0] == m1, 1:] * S[0, 1:], V[V[:, 0] == m1, 1:].T)
         if (m2 < last_model-1 and m1 != 0):
-            Result = 0.5 * unnormalize(p.T.flatten(),norm[0][0],norm[0][1]) + 0.5 * unnormalize(np.dot(U[U[:, 0] == m1 + 1, 1:] * S[1, 1:],V[V[:, 0] == m1 + 1, 1:].T).T.flatten(), norm[1][0],norm[1][1])
+            Result = 0.5 * unnormalize(p.T.flatten(),norm[0][0][value_index],norm[0][1][value_index]) + 0.5 * unnormalize(np.dot(U[U[:, 0] == m1 + 1, 1:] * S[1, 1:],V[V[:, 0] == m1 + 1, 1:].T).T.flatten(), norm[1][0][value_index],norm[1][1][value_index])
         else:
-            Result = unnormalize(p.T.flatten(),norm[0][0],norm[0][1])
+            Result = unnormalize(p.T.flatten(),norm[0][0][value_index],norm[0][1][value_index])
         return Result
 
     else:
@@ -364,14 +367,14 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
                 i *= (i>0)
                 length = finish - cursor
             print(m, m1,m2,i, length, len(res))
-            Result[i:i + length] += 0.5 * unnormalize(res, norm[m-m1][0], norm[m-m1][1])
+            Result[i:i + length] += 0.5 * unnormalize(res, norm[m-m1][0][value_index], norm[m-m1][1][value_index])
             Count [i:i + length] += 1
         Result[Count == 1] *= 2
         if end == 0: end = None
         return Result[tsrow1:end]
 
 
-def _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1, t2,MUpdateIndex,L,k,T,last_model, interval, start_ts, last_TS_seen,no_ts, value_index,direct_var = False,variance = False,averaging = 'last1', projected = False):
+def _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1, t2,MUpdateIndex,L,k,T,last_model, interval, start_ts, last_TS_seen,no_ts, value_index,direct_var = False,variance = False,averaging = 'average', projected = False):
     """
     Return the forecasted value in the past at the time range t1 to t2 for the value of column_name using index_name 
     ----------
@@ -428,27 +431,31 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
     coeffs_ts = coeffs[-no_ts:]
     coeffs = coeffs[:-no_ts]
     no_coeff = len(coeffs)
-    if projected and (not direct_var or not variance):
-            if last_model != 0:
-                q_model = last_model- 1
-            else:
-                q_model = last_model
-            U = interface.get_U_row(index_name + '_u', [0, 2 * L], [q_model, q_model], k,
-                                         return_modelno=False,return_weights_decom=True)[:-1,k:]
-            no_coeff = U.shape[0]
+    if not direct_var or not variance:
+            if projected:
+                if last_model != 0:
+                    q_model = last_model- 1
+                else:
+                    q_model = last_model
+                U = interface.get_U_row(index_name + '_u', [0, 2 * L], [q_model, q_model], k,
+                                             return_modelno=False,return_weights_decom=True)[:-1,k:]
+                no_coeff = U.shape[0]
+                projection_matrix = np.dot(U,U.T)
+            
             agg_interval = float(interval)
             if not isinstance(start_ts, (int, np.integer)):
                 start_ts = pd.Timestamp(start_ts)
             # if the range queries is beyond what we have so far, get the last point seen
-            last_TS_seen = last_TS_seen//no_ts
-            last_TS_seen = get_bound_time(interface, table_name, index_col, 'max')+1
+            last_TS_seen = get_bound_time(interface, table_name, index_col, 'max')
+            if not isinstance(last_TS_seen, (int, np.integer)):
+                last_TS_seen = index_ts_mapper(start_ts, agg_interval, last_TS_seen)
+            last_TS_seen+=1
             t1_ = min(t1, last_TS_seen)
             t2_ = min(t2, last_TS_seen)
             end = index_ts_inv_mapper(start_ts, agg_interval, t2_ - 1 )
             start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff  )
-            print(start,end)
             obs = interface.get_time_series(table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
-            projection_matrix = np.dot(U,U.T)
+            
             output = np.zeros([t2 - t1_ + 1 ])
             obs = np.array(obs)[:,0]
             # Fill using fill_method
@@ -461,17 +468,19 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
             
             for i in range(0, t2 + 1 - t1_): 
                     if i  < len(obs):
-                        # output[i] = np.dot(coeffs.T, np.dot(projection_matrix, observations[i:i + no_coeff]))
-                        output[i] = np.dot(coeffs.T,  observations[i:i + no_coeff])+coeffs_ts[value_index]
+                        if projected:
+                            output[i] = np.dot(coeffs.T, np.dot(projection_matrix, observations[i:i + no_coeff]))+coeffs_ts[value_index]
+                        else:
+                            output[i] = np.dot(coeffs.T,  observations[i:i + no_coeff])+coeffs_ts[value_index]
                     else:
                         output[i] = np.dot(coeffs.T,  observations[i:i + no_coeff])+coeffs_ts[value_index]
                     if i+no_coeff >= len(obs):
                         observations[i+no_coeff] = output[i]
+
             return output[-(t2 - t1 + 1):]
             
     # the forecast should always start at the last point
     t1_ = MUpdateIndex//no_ts 
-    print(t1_,MUpdateIndex, t1, t2, MUpdateIndex, no_ts, MUpdateIndex/no_ts)
     output = np.zeros([t2 - t1_ + 1 + no_coeff])
     output[:no_coeff] = _get_imputation_range(index_name, table_name, value_column, index_col, interface, t1_ - no_coeff, t1_ - 1, L,k,T,last_model,value_index, no_ts)
     for i in range(0, t2 + 1 - t1_):
@@ -527,8 +536,8 @@ def _get_imputation(index_name, table_name, value_column, index_col, interface, 
     T_ts = T//no_ts
     modelNo = int( max((t) / int(T_ts / 2) - 1, 0))
     N = L
-    col_norm_mean = 'norm_mean_%s'%value_column 
-    col_norm_std = 'norm_std_%s'%value_column 
+    col_norm_mean = 'norm_mean' 
+    col_norm_std = 'norm_std'
     norm = interface.query_table( index_name+'_m',[col_norm_mean, col_norm_std], 'modelno =' + str(modelNo) +' or modelno =' + str(modelNo+1)+' order by modelno')
     # if it is in the last sub-model, tscol and tsrow will be calculated differently
     if modelNo == last_model:
@@ -538,7 +547,7 @@ def _get_imputation(index_name, table_name, value_column, index_col, interface, 
         tsrow = (t - last_model_start//no_ts) % N
         U, S, V = interface.get_SUV(index_name, [tscolumn, tscolumn], [tsrow, tsrow],
                                             [modelNo, modelNo + 1], k, value_index)
-        return unnormalize(sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])]), norm[0][0], norm[0][1])
+        return unnormalize(sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])]), norm[0][0][value_index], norm[0][1][value_index])
         # U
 
     # if it is in the model before last, do not query the last model
@@ -547,7 +556,7 @@ def _get_imputation(index_name, table_name, value_column, index_col, interface, 
         tsrow = t % N
         U, V, S = interface.get_SUV(index_name, [tscolumn, tscolumn], [tsrow, tsrow],
                                             [modelNo, modelNo], k,value_index)
-        return unnormalize(sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])]), norm[0][0], norm[0][1])
+        return unnormalize(sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])]), norm[0][0][value_index], norm[0][1][value_index])
     
     else:
         tscolumn = (int(t/(N)))*no_ts + value_index
@@ -557,12 +566,12 @@ def _get_imputation(index_name, table_name, value_column, index_col, interface, 
   
         # if two sub models are queried get the average
         if V.shape[0] == 2 and U.shape[0] == 2:
-            return 0.5* (unnormalize(np.sum(U[0,:] * S[0] * V[0,:]), norm[0][0],norm[0][1])+ unnormalize(np.sum(U[1,:] * S[1] * V[1,:]), norm[1][0],norm[1][1]))
+            return 0.5* (unnormalize(np.sum(U[0,:] * S[0] * V[0,:]), norm[0][0][value_index],norm[0][1][value_index])+ unnormalize(np.sum(U[1,:] * S[1] * V[1,:]), norm[1][0][value_index],norm[1][1][value_index]))
             #return 0.5 * (sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])]) + sum(
             #    [a * b * c for a, b, c in zip(U[1, :], S[1, :], V[1, :])]))
         
         # else return one value directly
-        return unnormalize(sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])]),  norm[0][0], norm[0][1])
+        return unnormalize(sum([a * b * c for a, b, c in zip(U[0, :], S[0, :], V[0, :])]),  norm[0][0][value_index], norm[0][1][value_index])
 
 def forecast_next(index_name,table_name, value_column, index_col, interface, averaging = 'last1', ahead = 1):
     """

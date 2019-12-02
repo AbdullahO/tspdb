@@ -402,3 +402,24 @@ interface = SqlImplementation(driver="postgresql", host="localhost", database="q
 	print ('(test2 pindex: point query with uq) 	Forecast query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt2, number =1000)/timeit.timeit(setup = setup,stmt= stmtA, number =1000)))
 	print ('(test3 pindex: range query 100 points)		Forecast query latency is %s that of SELECT ' %(timeit.timeit(setup = setup,stmt= stmt3, number =1000)/timeit.timeit(setup = setup,stmt= stmtB, number =1000)))
 
+
+
+DO $$
+import tspdb
+from tspdb.src.database_module.plpy_imp import plpyimp
+from tspdb.tests.test_module import create_tables, create_pindex_test
+import pandas as pd
+plpy.notice('Libraries Imported')
+interface = plpyimp(plpy)
+dir_ = tspdb.__path__[0]+'/tests/'	
+for table in ['mixturets2','ts_basic_5','ts_basic_ts_5_5','mixturets_var']:
+		plpy.notice(table)
+		plpy.notice(dir_+'testdata/tables/%s.csv'%table)
+		df = pd.read_csv(dir_+'testdata/tables/%s.csv'%table) 
+		if table == 'ts_basic_ts_5_5': df['time'] = df['time'].astype('datetime64[ns]')
+		interface.create_table(table, df, 'time', include_index = False)
+$$ LANGUAGE plpython3u;
+DO $$
+import pandas as pd
+pd.read_csv('/usr/local/lib/python3.6/dist-packages/tspdb/tests/testdata/tables/mixturets2.csv')
+$$ LANGUAGE plpython3u;

@@ -422,3 +422,20 @@ class Interface(object):
             the condition to determine deleted rows
 
         """
+
+    @abc.abstractmethod
+    def get_time_diff(self, table_name, time_column, number_of_pts = 100):
+        """
+        return the median in the difference between first 100 consecutive time points
+        ----------
+        Parameters
+        ----------
+        table_name: string 
+            name of the table contating the row to be deleted
+        
+        time_column: string
+            tname of time column
+
+        number_of_pts: int
+            Number of point to estimate the differnce Default:100 
+        """

@@ -33,10 +33,17 @@ class TSMM(object):
         
         if M % (2*self.no_ts) != 0:
             M = M + (2*self.no_ts -M %(2*self.no_ts))
+            # self.col_to_row_ratio = self.get_dimensions(M)
             # if not persist_L: self.L = self.T//M 
-            self.T = self.L * M
-            self.col_to_row_ratio = M//self.L 
-            print ('Number of columns has to be even and divisible by the number of time series, thus T is changed into ', self.T)
+            # subtract a small amount to avoid issues with machine precision
+            self.col_to_row_ratio = M/self.L -1e-14
+            
+            if not persist_L:
+                self.T = int(M*M/self.col_to_row_ratio)
+                self.L = int(np.sqrt(self.T / self.col_to_row_ratio))
+            else:
+                self.T = self.L*M
+            print ('Number of columns has to be even and divisible by the number of time series, thus T is changed into %s, and col_to_row_ratio to %s'%(self.T, self.col_to_row_ratio))
   
         self.normalize = normalize
         self.persist_L = persist_L
@@ -50,7 +57,12 @@ class TSMM(object):
         self.model_tables_name = model_table_name
         self.SSVT = SSVT
         self.p = p
-        
+
+    def get_dimensions(self, M):
+        ratio = self.col_to_row_ratio
+        while M%ratio !=0:
+            ratio +=1
+        return ratio
 
     def get_model_index(self, ts_index=None):
         if ts_index is None:

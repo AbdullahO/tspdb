@@ -66,7 +66,7 @@ def create_table_data():
 def create_tables(interface):
 	dir_ = tspdb.__path__[0]+'/tests/'	
 	for table in ['mixturets2','ts_basic_5','ts_basic_ts_5_5','mixturets_var']:
-		df = pd.read_csv(dir_+'testdata/tables/%s.csv'%table) 
+		df = pd.read_csv(dir_+'testdata/tables/%s.csv'%table, engine = 'python') 
 		if table == 'ts_basic_ts_5_5': df['time'] = df['time'].astype('datetime64[ns]')
 		interface.create_table(table, df, 'time', include_index = False)
 	

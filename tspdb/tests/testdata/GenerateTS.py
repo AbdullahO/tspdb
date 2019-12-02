@@ -1,4 +1,7 @@
 from time import clock
+import sys
+sys.path.append('../../../')
+print (sys.path)
 from tspdb.src.data import generateHarmonics as gH
 from  tspdb.src.data import generateTrend as gT
 import tspdb.src.data.generateARMA as gA
@@ -28,7 +31,7 @@ def trendDataTest(timeSteps):
 
 def harmonicDataTest(timeSteps):
     sineCoeffs = [-2.0, 3.0]
-    sinePeriods = [26.0, 30.0]
+    sinePeriods = [560.0, 30.0]
     cosineCoeffs = [-2.5]
     cosinePeriods = [16.0]
     data = gH.generate(sineCoeffs, sinePeriods, cosineCoeffs, cosinePeriods, timeSteps)

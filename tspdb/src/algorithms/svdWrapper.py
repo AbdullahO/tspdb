@@ -8,7 +8,7 @@ from tspdb.src import tsUtils
 
 class SVDWrapper:
 
-    def __init__(self, matrix, method='numpy', threshold = 0.90):
+    def __init__(self, matrix, method='numpy', threshold = 0.95):
         if (type(matrix) != np.ndarray):
             raise Exception('SVDWrapper required matrix to be of type np.ndarray')
 

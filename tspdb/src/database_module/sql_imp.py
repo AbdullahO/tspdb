@@ -5,6 +5,8 @@ import numpy as np
 import io
 from time import time
 import pandas as pd
+from sqlalchemy.types import *
+
 class SqlImplementation(Interface):
     def __init__(self, driver="postgresql", host="localhost", database="querytime_test", user="aalomar",
                  password="AAmit32lids"):
@@ -52,26 +54,29 @@ class SqlImplementation(Interface):
         array, shape [(end - start +1) or  ceil(end(in seconds) - start(in seconds) +1) / interval ]
             Values of time series in the time interval start to end sorted according to index_column
         """
-
+        name = '"'+name+'"'
+        index_column = '"'+index_column+'"'
+        value_columns = value_column.split(',')
+        value_columns = ['"'+i+'"' for i in value_columns]
         if connection is None:
             connection = self.engine.connect()
         if isinstance(start, (int, np.integer)) and (isinstance(end, (int, np.integer)) or end is None):
 
             if end is None:
-                sql = 'Select ' + value_column + " from  " + name + " where " + index_column + " >= %s order by "+index_column
+                sql = 'Select ' + ','.join(value_columns) + " from  " + name + " where " + index_column + " >= %s order by "+index_column
                 result = connection.execute(sql, (start)).fetchall()
 
             else:
                 if not Desc:
-                    sql = 'Select ' + value_column + " from  " + name + " where " + index_column + " >= %s and " + index_column + " <= %s order by " + index_column
+                    sql = 'Select ' + ','.join(value_columns) + " from  " + name + " where " + index_column + " >= %s and " + index_column + " <= %s order by " + index_column
                 else:
-                    sql = 'Select ' + value_column + " from  " + name + " where " + index_column + " >= %s and " + index_column + " <= %s order by " + index_column + ' Desc'
+                    sql = 'Select ' + ','.join(value_columns) + " from  " + name + " where " + index_column + " >= %s and " + index_column + " <= %s order by " + index_column + ' Desc'
                 result = connection.execute(sql, (start, end)).fetchall()
         
         elif  isinstance(start, (pd.Timestamp)) and (isinstance(end, (pd.Timestamp)) or end is None):
         
             seconds = interval%60
-            minutes = int(interval/60)
+            minutes = int((interval%3600)/60)
             hours = int(interval/3600)
             interval_str = '%s:%s:%s'%(hours, minutes, seconds)
             
@@ -83,15 +88,17 @@ class SqlImplementation(Interface):
                 raise
             ## might be needed
             start_ts_str = start_ts.strftime('%Y-%m-%d %H:%M:%S')
+            ## queried columns
+            queried_columns = ','.join([agg_function+"(m."+value+') "ag_'+value[1:-1]+'"' for value in value_columns])
             ## fix strings formatting
             if end is None:
-                select_sql = "select "+agg_function+"(m."+value_column+") avg_val from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > %s  group by f.start_time, f.end_time order by f.start_time"
+                select_sql = "select "+queried_columns + " from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > %s  group by f.start_time, f.end_time order by f.start_time"
                 generate_series_sql = "with intervals as (select n as start_time,n+'"+interval_str+"'::interval as end_time from generate_series(%s::timestamp, now(),'"+interval_str+"'::interval) as n )"
                 sql = generate_series_sql+ select_sql
                 result = connection.execute(sql, (start_ts_str,start.strftime('%Y-%m-%d %H:%M:%S'),)).fetchall()
             else:
                 generate_series_sql = "with intervals as (select n as start_time,n+'"+interval_str+"'::interval as end_time from generate_series(%s::timestamp, %s::timestamp,'"+interval_str+"'::interval) as n )"
-                select_sql = "select "+agg_function+"(m."+value_column+") avg_val from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > %s and  f.start_time < %s group by f.start_time, f.end_time order by f.start_time"
+                select_sql = "select "+queried_columns+ " from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > %s and  f.start_time < %s group by f.start_time, f.end_time order by f.start_time"
                 if Desc: select_sql += 'DESC'
                 sql = generate_series_sql+ select_sql
                 result = connection.execute(sql, (start_ts_str,end.strftime('%Y-%m-%d %H:%M:%S'), start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S'),)).fetchall()
@@ -373,7 +380,7 @@ class SqlImplementation(Interface):
             return self.engine.execute(query).fetchall()
 
     def create_table(self, table_name, df, primary_key=None, load_data=True,replace_if_exists = True , include_index=True,
-                     index_label="row_id"):
+                     index_label="row_id", type_dict = None):
         """
         Create table in the database with the same columns as the given pandas dataframe. Rows in the df will be written to
         the newly created table if load_data.
@@ -402,6 +409,7 @@ class SqlImplementation(Interface):
             name of the index column of the df in the newly created database table 
 
         """
+
         # drop table if exists:
         if replace_if_exists:
             self.drop_table(table_name)
@@ -416,7 +424,7 @@ class SqlImplementation(Interface):
         else:
             schema = None
             table_name_ = table_name
-        df.head(0).to_sql(table_name_, self.engine, index=include_index, index_label=index_label, schema = schema)
+        df.head(0).to_sql(table_name_, self.engine, index=include_index, index_label=index_label, schema = schema, dtype=type_dict)
         
         
         if load_data:
@@ -561,7 +569,11 @@ class SqlImplementation(Interface):
         df pandas dataframe 
             Dataframe containing the data to be added
         """
-
+        # preprocess tuples and lists into postgres arrays
+        # columns = df.select_dtypes(['object']).columns
+        # for column in columns:
+        #     if type(df[column][0]) == tuple or type(df[column][0]) == list:
+        #         df[column] = df[column].astype(str).str.replace('(','{').str.replace(')','}')
         conn = self.engine.raw_connection()
         cur = conn.cursor()
         output = io.StringIO()
@@ -612,18 +624,51 @@ class SqlImplementation(Interface):
         plpy.execute("select update_pindex('%s');")\
         $$LANGUAGE plpython3u;'''
         self.engine.execute(function %(index_name, index_name))
-        query = "CREATE TRIGGER tspdb_update_pindex_tg AFTER insert ON " + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "
+        query = "CREATE TRIGGER tspdb_update_pindex_tg_%s AFTER insert ON "%index_name[6:] + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "
         self.engine.execute(query)
 
 
-    def drop_trigger(self, table_name):
-        query = "DROP TRIGGER if EXISTS tspdb_update_pindex_tg on " + table_name 
+    def drop_trigger(self, table_name, index_name):
+        query = "DROP TRIGGER if EXISTS tspdb_update_pindex_tg_%s on "%index_name[6:] + table_name 
         self.engine.execute(query)
 
     def get_extreme_value(self, table_name, column_name, extreme = 'min'):
+        column_name  = '"'+column_name+'"'
+        table_name = '"'+table_name+'"'
         agg_func_dict = { 'min': 'MIN', 'max': 'MAX'}
         query = "SELECT  %s(%s) from  "+ table_name
         ext = self.engine.execute(query %(agg_func_dict[extreme], column_name)).fetchone()[0]
         if isinstance(ext, (int, np.integer)): return ext
         else: return str(ext)
+
+
+
+    def get_time_diff(self, table_name, time_column, number_of_pts = 100):
+        """
+        return the median in the difference between first 100 consecutive time points
+        ----------
+        Parameters
+        ----------
+        table_name: string 
+            name of the table contating the row to be deleted
+        
+        time_column: string
+            tname of time column
+
+        number_of_pts: int
+            Number of point to estimate the differnce Default:100 
+        """
+        time_column_ = '"'+time_column+'"'
+        table_name_ = '"'+table_name+'"'
+
+        query = "SELECT %s from %s order by %s limit %s;" % (time_column_, table_name_,time_column_, number_of_pts)
+        result =  self.engine.execute(query)
+        result = [row[time_column]  for row in result]
+        if  isinstance(result[0], (int, np.integer)): 
+            return np.median(np.diff(result))
+        else:
+            timestamps_float  = [pd.Timestamp(i).timestamp() for i in result]
+            return np.median(np.diff(timestamps_float))
+
+
         

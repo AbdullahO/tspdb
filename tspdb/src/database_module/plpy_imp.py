@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from tspdb.src.database_module.db_class import Interface
+from sqlalchemy.types import *
 #######################TO DO##########################
 #1 get SUV instead of all getU,getS, getV
 ######################################################
@@ -48,25 +49,28 @@ class plpyimp(Interface):
         array, shape [(end - start +1) or  ceil(end(in seconds) - start(in seconds) +1) / interval ]
             Values of time series in the time interval start to end sorted according to index_column
         """
+        name = '"'+name+'"'
+        index_column = '"'+index_column+'"'
+        value_columns = value_column.split(',')
+        value_columns_ = ['"'+i+'"' for i in value_columns]
         if isinstance(start, (int, np.integer)) and (isinstance(end, (int, np.integer)) or end is None):
             if end is None:
-                sql = 'Select ' + value_column + " from  " + name + " where " + index_column + " >= "+str(start)+" order by "+index_column
+                sql = 'Select ' + ','.join(value_columns_) + " from  " + name + " where " + index_column + " >= "+str(start)+" order by "+index_column
                 result = self.engine.execute(sql)
 
             else:
                 if not Desc:
-                    sql = 'Select ' + value_column + " from  " + name + " where " + index_column + " >= "+str(start)+" and " + index_column + " <= "+str(end)+" order by " + index_column
+                    sql = 'Select ' + ','.join(value_columns_) + " from  " + name + " where " + index_column + " >= "+str(start)+" and " + index_column + " <= "+str(end)+" order by " + index_column
                 else:
-                    sql = 'Select ' + value_column + " from  " + name + " where " + index_column + " >= "+str(start)+" and " + index_column + " <= "+str(end)+" order by " + index_column + ' Desc'
+                    sql = 'Select ' + ','.join(value_columns_) + " from  " + name + " where " + index_column + " >= "+str(start)+" and " + index_column + " <= "+str(end)+" order by " + index_column + ' Desc'
                 result = self.engine.execute(sql)
             result = [row for row in result]
-            columns = value_column.split(',')
-            return [[row[ci] for ci in columns] for row in result]
+            return [[row[ci] for ci in value_columns] for row in result]
 
         elif  isinstance(start, (pd.Timestamp)) and (isinstance(end, (pd.Timestamp)) or end is None):
         
             seconds = interval%60
-            minutes = int(interval/60)
+            minutes = int((interval%3600)/60)
             hours = int(interval/3600)
             interval_str = '%s:%s:%s'%(hours, minutes, seconds)
             
@@ -78,25 +82,26 @@ class plpyimp(Interface):
                 raise
             ## might be needed
             start_ts_str = start_ts.strftime('%Y-%m-%d %H:%M:%S')
+            queried_columns = ','.join([agg_function+"(m."+value+') "ag_'+value[1:-1]+'"' for value in value_columns_])
             ## fix strings formatting
             if end is None:
-                select_sql = "select "+agg_function+"(m."+value_column+") avg_val from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > "+start_ts_str+"  group by f.start_time, f.end_time order by f.start_time"
+                select_sql = "select "+queried_columns+ "from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > "+start_ts_str+"  group by f.start_time, f.end_time order by f.start_time"
                 generate_series_sql = "with intervals as (select n as start_time,n+'"+interval_str+"'::interval as end_time from generate_series('"+start.strftime('%Y-%m-%d %H:%M:%S')+"'::timestamp, now(),'"+interval_str+"'::interval) as n )"
                 sql = generate_series_sql+ select_sql
                 result = self.engine.execute(sql)
                 result = [row for row in result]
-                return [(row['avg_val'],) for row in result]
+                return [[row['ag_'+ci] for ci in value_columns] for row in result]
             else:
                 generate_series_sql = "with intervals as (select n as start_time,n+'"+interval_str+"'::interval as end_time from generate_series('%s'::timestamp, '%s'::timestamp,'"+interval_str+"'::interval) as n )" 
                 generate_series_sql = generate_series_sql % (start_ts_str,end.strftime('%Y-%m-%d %H:%M:%S'),)
-                select_sql = "select "+agg_function+"(m."+value_column+") avg_val from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > '%s' and  f.start_time < '%s' group by f.start_time, f.end_time order by f.start_time" 
+                select_sql = "select "+queried_columns+" from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > '%s' and  f.start_time < '%s' group by f.start_time, f.end_time order by f.start_time" 
                 select_sql = select_sql%(start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S'),)
                 if Desc: select_sql += 'DESC'
                 sql = generate_series_sql+ select_sql
                 result = self.engine.execute(sql)
                 result = [row for row in result]
-                
-                return [(row['avg_val'],) for row in result]
+                self.engine.notice(result)
+                return [[row['ag_'+ci] for ci in value_columns] for row in result]
         else:
              raise Exception('start and end values must either be integers or pd.timestamp')
     
@@ -334,8 +339,24 @@ class plpyimp(Interface):
         return U,S,V
     
     
+    def sqlalchemy_type_mapper(self, instance):
+        if isinstance(instance, Integer):
+            return 'bigint'
+        elif isinstance(instance, Float):
+            return 'double precision'
+        elif isinstance(instance, DateTime):
+            return 'TIMESTAMP'
+        elif isinstance(instance, Boolean):
+            return 'boolean'
+        elif isinstance(instance, ARRAY):
+            item_type = self.sqlalchemy_type_mapper(instance.item_type)
+            return item_type +'[]'
+        else:
+            raise Exception('type is not understood')
+                                        
+
     def create_table(self, table_name, df, primary_key=None, load_data=True,replace_if_exists = True , include_index=True,
-                     index_label="row_id"):
+                     index_label="row_id", type_dict = None):
 
         """
         Create table in the database with the same columns as the given pandas dataframe. Rows in the df will be written to
@@ -373,15 +394,21 @@ class plpyimp(Interface):
         elif self.table_exists(table_name):
             raise ValueError('table with %s already exists in the database!' % table_name)
         # # create table in database
+        #convert types dict to postgres types
+        # if None, use the DF types
 
         types_dict = {'bool': 'boolean', 'object' : 'text','int64': 'bigint','int32': 'bigint','int32': 'bigint', 'float64': 'double precision', 'float32': 'double precision','float': 'double precision', 'datetime64[ns]':'TIMESTAMP' }
         columns = list(df.columns)
-        col_dtypes = list(df.dtypes.values)
+        if type_dict is not None:
+            col_dtypes = [self.sqlalchemy_type_mapper(type_dict[col]) for col in columns]
+        else:
+            col_dtypes = list(df.dtypes.values)
+            col_dtypes = [types_dict[str(i)] for i in col_dtypes]
+        
         if include_index:
             columns = [index_label] + columns
-            col_dtypes = [df.index.dtype] + col_dtypes
-
-        cols  = ['"'+a+'"   '+b for a,b in zip(columns, [types_dict[str(i)] for i in col_dtypes])]
+            col_dtypes = [types_dict[str(df.index.dtype)]] + col_dtypes
+        cols  = ['"'+a+'"   '+b for a,b in zip(columns, col_dtypes)]
         sql = ", \n".join(cols)
 
         self.engine.execute('create table '+table_name+' (' + sql + ');')
@@ -556,14 +583,7 @@ class plpyimp(Interface):
             Dataframe containing the data to be added
         """
         
-        # if include_index:
-        #     data = np.concatenate((df.index.values.reshape(-1,1), df.values),1)
-        # else:
-        #     data = df.values
-
-        # values = ','.join([str(tuple(i)) for i in data])
-        # self.engine.execute('insert into '+ table_name+ ' values '+values + ';')
-
+        
         df.to_csv('temp.csv', sep='\t', header=False, index=include_index, index_label=index_label)
         self.engine.execute('copy  '+ table_name+ " from 'temp.csv' WITH NULL AS '' ;")
         # os.remove("temp.csv")
@@ -645,19 +665,50 @@ class plpyimp(Interface):
         plpy.execute("select update_pindex('%s');")\
         $$LANGUAGE plpython3u;'''
         self.engine.execute(function %(index_name, index_name))
-        query = "CREATE TRIGGER tspdb_update_pindex_tg AFTER insert ON " + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "
+        query = "CREATE TRIGGER tspdb_update_pindex_tg_%s AFTER insert ON "%index_name[6:] + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "
         self.engine.execute(query)
 
 
-    def drop_trigger(self, table_name):
-        query = "DROP TRIGGER if EXISTS tspdb_update_pindex_tg on " + table_name 
+    def drop_trigger(self, table_name, index_name):
+        query = "DROP TRIGGER if EXISTS tspdb_update_pindex_tg_%s on "%index_name[6:] + table_name 
         self.engine.execute(query)
 
 
     def get_extreme_value(self, table_name, column_name, extreme = 'min'):
+        column_name = '"'+column_name+'"'
+        table_name = '"'+table_name+'"'
         agg_func_dict = { 'min': 'MIN', 'max': 'MAX'}
         query = "SELECT " + extreme+"("+ column_name+") as ext from "+ table_name
         ext = self.engine.execute(query)[0]['ext']
         if isinstance(ext, (int, np.integer)): return ext
         else: return str(ext)
+
+    def get_time_diff(self, table_name, time_column, number_of_pts = 100):
+        """
+        return the median in the difference between first 100 consecutive time points
+        ----------
+        Parameters
+        ----------
+        table_name: string 
+            name of the table contating the row to be deleted
+        
+        time_column: string
+            tname of time column
+
+        number_of_pts: int
+            Number of point to estimate the differnce Default:100 
+        """
+        time_column_ = '"'+time_column+'"'
+        table_name_ = '"'+table_name+'"'
+
+        query = "SELECT %s from %s order by %s limit %s;" % (time_column_, table_name_,time_column_, number_of_pts)
+        result =  self.engine.execute(query)
+        result = [row[time_column]  for row in result]
+        if  isinstance(result[0], (int, np.integer)): 
+            return np.median(np.diff(result))
+        else:
+            timestamps_float  = [pd.Timestamp(i).timestamp() for i in result]
+            return np.median(np.diff(timestamps_float))
+
+
         

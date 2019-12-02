@@ -11,6 +11,7 @@ from tspdb.src.pindex.pindex_utils import index_ts_mapper, index_ts_inv_mapper, 
 from sklearn.metrics import r2_score
 import time
 import pickle
+from sqlalchemy.types import *
 
 def delete_pindex(db_interface, index_name, schema='tspdb'):
     """
@@ -44,7 +45,7 @@ def delete_pindex(db_interface, index_name, schema='tspdb'):
         meta_table = index_name_ + "_meta"
         # get time series table name
         table_name = db_interface.query_table(meta_table, columns_queried=['time_series_table_name'])[0][0]
-        db_interface.drop_trigger(table_name)
+        db_interface.drop_trigger(table_name,index_name)
     except: 
         pass
 
@@ -147,99 +148,99 @@ def load_pindex_u(db_interface,index_name):
     return TSPD
 
 
-def load_pindex(db_interface, index_name):
-#     """
-#     load Pindex index_name from database.
-#     ----------
-#     Parameters
-#     ----------
-#     db_interface: DBInterface object
-#         instant of an interface with the db
+# def load_pindex(db_interface, index_name):
+# #     """
+# #     load Pindex index_name from database.
+# #     ----------
+# #     Parameters
+# #     ----------
+# #     db_interface: DBInterface object
+# #         instant of an interface with the db
 
-#     index_name: string 
-#         name of the pindex to be deleted
+# #     index_name: string 
+# #         name of the pindex to be deleted
 
-#     ----------
-#     Returns
-#     ----------
-#     pindex a TSPI object
-#     """
+# #     ----------
+# #     Returns
+# #     ----------
+# #     pindex a TSPI object
+# #     """
 
-    ##################################### TO DO ################################
-    # 2 remove temp fixes
-    ############################################################################
+#     ##################################### TO DO ################################
+#     # 2 remove temp fixes
+#     ############################################################################
 
-    # LOAD TSMM MODEL INFORMATION
-    t = time.time()
-    meta_table = index_name + "_meta"
-    meta_inf = db_interface.query_table(meta_table,
-                                        columns_queried=['T', 'T0', 'k', 'gamma', 'var_direct_method', 'k_var', 'T_var',
-                                                         'soft_thresholding', 'start_time', 'aggregation_method',
-                                                         'agg_interval', 'persist_l','col_to_row_ratio', 'L','last_TS_fullSVD','last_TS_inc',
-                                                              'last_TS_seen' ,'time_series_table_name', 'indexed_column','time_column'])
+#     # LOAD TSMM MODEL INFORMATION
+#     t = time.time()
+#     meta_table = index_name + "_meta"
+#     meta_inf = db_interface.query_table(meta_table,
+#                                         columns_queried=['T', 'T0', 'k', 'gamma', 'var_direct_method', 'k_var', 'T_var',
+#                                                          'soft_thresholding', 'start_time', 'aggregation_method',
+#                                                          'agg_interval', 'persist_l','col_to_row_ratio', 'L','last_TS_fullSVD','last_TS_inc',
+#                                                               'last_TS_seen' ,'time_series_table_name', 'indexed_column','time_column'])
     
-    T, T0, k, gamma, direct_var, k_var, T_var, SSVT, start_time, aggregation_method, agg_interval, persist_l, col_to_row_ratio, L, ReconIndex, MUpdateIndex, TimeSeriesIndex = meta_inf[0][:-3]
-    time_series_table = meta_inf[0][-3:]
+#     T, T0, k, gamma, direct_var, k_var, T_var, SSVT, start_time, aggregation_method, agg_interval, persist_l, col_to_row_ratio, L, ReconIndex, MUpdateIndex, TimeSeriesIndex = meta_inf[0][:-3]
+#     time_series_table = meta_inf[0][-3:]
     
-    # ------------------------------------------------------
-    # temp fix
-    gamma = float(gamma)
-    if not isinstance(start_time, (int, np.integer)):
-        start_time = pd.to_datetime(start_time)
-    agg_interval = float(agg_interval)
-    # ------------------------------------------------------
-    # initiate TSPI object 
-    TSPD = TSPI(interface=db_interface, index_name=index_name, schema=None, T=T, T0=T0, rank=k, gamma=gamma,
-                direct_var=direct_var, rank_var=k_var, T_var=T_var, SSVT=SSVT, start_time=start_time,
-                aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table_name=time_series_table[0], time_column = time_series_table[2], value_column = time_series_table[1].split(',') ,persist_L = persist_l,col_to_row_ratio = col_to_row_ratio)
-    TSPD.ts_model = TSMM(TSPD.k, TSPD.T, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
-                         model_table_name=index_name, SSVT=TSPD.SSVT, L=L, persist_L = TSPD.persist_L, no_ts = TSPD.no_ts)
-    TSPD.ts_model.ReconIndex, TSPD.ts_model.MUpdateIndex, TSPD.ts_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
+#     # ------------------------------------------------------
+#     # temp fix
+#     gamma = float(gamma)
+#     if not isinstance(start_time, (int, np.integer)):
+#         start_time = pd.to_datetime(start_time)
+#     agg_interval = float(agg_interval)
+#     # ------------------------------------------------------
+#     # initiate TSPI object 
+#     TSPD = TSPI(interface=db_interface, index_name=index_name, schema=None, T=T, T0=T0, rank=k, gamma=gamma,
+#                 direct_var=direct_var, rank_var=k_var, T_var=T_var, SSVT=SSVT, start_time=start_time,
+#                 aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table_name=time_series_table[0], time_column = time_series_table[2], value_column = time_series_table[1].split(',') ,persist_L = persist_l,col_to_row_ratio = col_to_row_ratio)
+#     TSPD.ts_model = TSMM(TSPD.k, TSPD.T, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
+#                          model_table_name=index_name, SSVT=TSPD.SSVT, L=L, persist_L = TSPD.persist_L, no_ts = TSPD.no_ts)
+#     TSPD.ts_model.ReconIndex, TSPD.ts_model.MUpdateIndex, TSPD.ts_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
 
-    # load variance models if any
-    if TSPD.k_var != 0:
-        col_to_row_ratio, L, ReconIndex, MUpdateIndex, TimeSeriesIndex = db_interface.query_table(meta_table,
-                                                                                                  columns_queried=[
-                                                                                                      'col_to_row_ratio_var',
-                                                                                                      'L_var',
-                                                                                                      'last_TS_fullSVD_var',
-                                                                                                      'last_TS_inc_var',
-                                                                                                      'last_TS_seen_var'])[0]
+#     # load variance models if any
+#     if TSPD.k_var != 0:
+#         col_to_row_ratio, L, ReconIndex, MUpdateIndex, TimeSeriesIndex = db_interface.query_table(meta_table,
+#                                                                                                   columns_queried=[
+#                                                                                                       'col_to_row_ratio_var',
+#                                                                                                       'L_var',
+#                                                                                                       'last_TS_fullSVD_var',
+#                                                                                                       'last_TS_inc_var',
+#                                                                                                       'last_TS_seen_var'])[0]
 
-        TSPD.var_model = TSMM(TSPD.k_var, TSPD.T_var, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
-                              model_table_name=index_name + "_variance", SSVT=TSPD.SSVT, L=L, persist_L =TSPD.persist_L, no_ts = TSPD.no_ts)
-        TSPD.var_model.ReconIndex, TSPD.var_model.MUpdateIndex, TSPD.var_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
+#         TSPD.var_model = TSMM(TSPD.k_var, TSPD.T_var, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
+#                               model_table_name=index_name + "_variance", SSVT=TSPD.SSVT, L=L, persist_L =TSPD.persist_L, no_ts = TSPD.no_ts)
+#         TSPD.var_model.ReconIndex, TSPD.var_model.MUpdateIndex, TSPD.var_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
 
-    print('loading meta_model time', time.time()-t)
-    # LOADING SUB-MODELs Information
-    TSPD._load_models_from_db(TSPD.ts_model)
-    print('loading sub models time', time.time()-t)
-    start_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval,
-                                      (TSPD.ts_model.TimeSeriesIndex - TSPD.ts_model.T)//TSPD.no_ts)
-    end_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval, (TSPD.ts_model.TimeSeriesIndex - 1)//TSPD.no_ts)
-    TSPD.ts_model.TimeSeries = TSPD._get_range(start_point, end_point)
-    print('loading time series time', time.time()-t)
-    # query variance models table
-    if TSPD.k_var != 0:
-        TSPD._load_models_from_db(TSPD.var_model)
+#     print('loading meta_model time', time.time()-t)
+#     # LOADING SUB-MODELs Information
+#     TSPD._load_models_from_db(TSPD.ts_model)
+#     print('loading sub models time', time.time()-t)
+#     start_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval,
+#                                       (TSPD.ts_model.TimeSeriesIndex - TSPD.ts_model.T)//TSPD.no_ts)
+#     end_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval, (TSPD.ts_model.TimeSeriesIndex - 1)//TSPD.no_ts)
+#     TSPD.ts_model.TimeSeries = TSPD._get_range(start_point, end_point)
+#     print('loading time series time', time.time()-t)
+#     # query variance models table
+#     if TSPD.k_var != 0:
+#         TSPD._load_models_from_db(TSPD.var_model)
 
-        # load last T points of  variance time series (squared of observations if not direct_var)
-        if TSPD.direct_var:
-            TT = min(TSPD.var_model.TimeSeriesIndex, TSPD.var_model.T)
-            mean = np.zeros([TT//TSPD.no_ts,TSPD.no_ts])
-            start_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval,
-                                              max(TSPD.var_model.TimeSeriesIndex - TSPD.var_model.T, 0)//TSPD.no_ts)
-            end_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval, (TSPD.var_model.TimeSeriesIndex - 1)//TSPD.no_ts)
+#         # load last T points of  variance time series (squared of observations if not direct_var)
+#         if TSPD.direct_var:
+#             TT = min(TSPD.var_model.TimeSeriesIndex, TSPD.var_model.T)
+#             mean = np.zeros([TT//TSPD.no_ts,TSPD.no_ts])
+#             start_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval,
+#                                               max(TSPD.var_model.TimeSeriesIndex - TSPD.var_model.T, 0)//TSPD.no_ts)
+#             end_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval, (TSPD.var_model.TimeSeriesIndex - 1)//TSPD.no_ts)
             
-            for ts_n, value_column in enumerate(TSPD.value_column):
-                mean[:,ts_n] = get_prediction_range(index_name, TSPD.time_series_table_name, value_column,
-                                         db_interface, start_point, end_point, uq=False)
+#             for ts_n, value_column in enumerate(TSPD.value_column):
+#                 mean[:,ts_n] = get_prediction_range(index_name, TSPD.time_series_table_name, value_column,
+#                                          db_interface, start_point, end_point, uq=False)
             
-            TSPD.var_model.TimeSeries = np.array(TSPD._get_range(start_point, end_point)).astype('float') - mean
-        else:
-            TSPD.var_model.TimeSeries = (TSPD.ts_model.TimeSeries) ** 2
-    print('loading time series variance time', time.time()-t)
-    return TSPD
+#             TSPD.var_model.TimeSeries = np.array(TSPD._get_range(start_point, end_point)).astype('float') - mean
+#         else:
+#             TSPD.var_model.TimeSeries = (TSPD.ts_model.TimeSeries) ** 2
+#     print('loading time series variance time', time.time()-t)
+#     return TSPD
 
 
 class TSPI(object):
@@ -260,9 +261,9 @@ class TSPI(object):
     # var_model:                (TSMM object) the variance prediction model object
 
     def __init__(self, rank = None, rank_var = 1, T=int(1e5), T_var=None, gamma=0.2, T0=1000, col_to_row_ratio=10,
-                 interface=Interface, agg_interval=1., start_time=None, aggregation_method='average',
+                 interface=Interface, agg_interval=None, start_time=None, aggregation_method='average',
                  time_series_table_name= "", time_column = "", value_column = [''], SSVT=False, p=1.0, direct_var=True, L=None,  recreate=True,
-                 index_name=None, _dir='', schema='tspdb', persist_L = None, normalize = True):
+                 index_name=None, _dir='', schema='tspdb', persist_L = None, normalize = True, auto_update = True):
         if gamma <0 or gamma >=1:
             gamma = 0.5
         self._dir = _dir
@@ -274,6 +275,7 @@ class TSPI(object):
         self.no_ts = len(value_column)
         self.k = rank
         self.SSVT = SSVT
+        self.auto_update = auto_update
         ############ Temp ############
         # In current implemntation, we will assume that T_var = T
         T_var = T
@@ -294,6 +296,10 @@ class TSPI(object):
         self.k_var = rank_var
         self.index_name = index_name
         self.schema = schema
+        # if agg_interval is not given, estimate it from the first 100 points
+        if agg_interval is None:
+            agg_interval = interface.get_time_diff( self.time_series_table_name, self.time_column,100)
+        
         self.agg_interval = agg_interval
         
         self.aggregation_method = aggregation_method
@@ -342,8 +348,9 @@ class TSPI(object):
         if len(new_entries) > 0:
             self.update_model(new_entries)
             self.write_model(True)
-        self.db_interface.drop_trigger(self.time_series_table_name)
-        self.db_interface.create_insert_trigger(self.time_series_table_name, self.index_name)
+        self.db_interface.drop_trigger(self.time_series_table_name, self.index_name)
+        if self.auto_update:
+            self.db_interface.create_insert_trigger(self.time_series_table_name, self.index_name)
 
     def update_index(self):
         """
@@ -458,29 +465,13 @@ class TSPI(object):
         if not isinstance(self.start_time, (int, np.integer)):
             #metadf['start_time'] = metadf['start_time'].astype(pd.Timestamp)
             metadf['start_time'] = metadf['start_time'].astype('datetime64[ns]')
-        
+        last_index = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex//self.no_ts -1)
         if create:
             # create meta table
             self.db_interface.create_table(self.index_name + '_meta', metadf, include_index=False)
-            last_index = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex//self.no_ts)
-            # populate tspdb pindices and column pindices
-            if isinstance(self.start_time, (int, np.integer)):
-                self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
-                                          self.agg_interval, self.start_time, last_index],
-                                         columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
-                                                  'initial_index', 'last_index'])
-            else:
-                self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
-                                          self.agg_interval, self.start_time, last_index],
-                                         columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
-                                                  'initial_timestamp', 'last_timestamp'])
+            
+            # populate column pindices
             for i,ts in enumerate(self.value_column):
-                forecast_tests_array = np.array([m.forecast_model_score_test[i] for m in self.ts_model.models.values()],'float')
-                self.db_interface.insert('tspdb.pindices_stats',
-                                         [index_name, ts, self.ts_model.TimeSeriesIndex//self.no_ts, len(self.ts_model.models),np.mean([ m.imputation_model_score[i] for m in self.ts_model.models.values() ]), np.mean([ m.forecast_model_score[i] for m in self.ts_model.models.values()]),np.nanmean(forecast_tests_array)],
-                                         columns=['index_name', 'column_name','number_of_observations', 'number_of_trained_models', 'imputation_score', 'forecast_score','test_forecast_score'])
                 self.db_interface.insert('tspdb.pindices_columns', [index_name, ts],
                                      columns=['index_name', 'value_column'])
 
@@ -491,28 +482,27 @@ class TSPI(object):
             self.db_interface.delete('tspdb.pindices', "index_name = '" + str(index_name) + "';")
             self.db_interface.delete('tspdb.pindices_stats', "index_name = '" + str(index_name) + "';")
             
-            last_index = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex//self.no_ts)
             # UPDATE STAT TABLE
-            for i,ts in enumerate(self.value_column):
-                forecast_tests_array = np.array([m.forecast_model_score_test[i] for m in self.ts_model.models.values()],'float')
-                self.db_interface.insert('tspdb.pindices_stats',
-                                         [index_name, ts, self.ts_model.TimeSeriesIndex//self.no_ts, len(self.ts_model.models),np.mean([ m.imputation_model_score[i] for m in self.ts_model.models.values() ]), np.mean([ m.forecast_model_score[i] for m in self.ts_model.models.values()]),np.nanmean(forecast_tests_array)],
-                                         columns=['index_name', 'column_name','number_of_observations', 'number_of_trained_models', 'imputation_score', 'forecast_score','test_forecast_score'])
-                
+        for i,ts in enumerate(self.value_column):
+            forecast_tests_array = np.array([m.forecast_model_score_test[i] for m in self.ts_model.models.values()],'float')
+            self.db_interface.insert('tspdb.pindices_stats',
+                                     [index_name, ts, self.ts_model.TimeSeriesIndex//self.no_ts, len(self.ts_model.models),np.mean([ m.imputation_model_score[i] for m in self.ts_model.models.values() ]), np.mean([ m.forecast_model_score[i] for m in self.ts_model.models.values()]),np.nanmean(forecast_tests_array)],
+                                     columns=['index_name', 'column_name','number_of_observations', 'number_of_trained_models', 'imputation_score', 'forecast_score','test_forecast_score'])
+            
             # UPDATE PINDICES TABLE
-            if isinstance(self.start_time, (int, np.integer)):
-                self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
-                                          self.agg_interval, self.start_time, last_index],
-                                         columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
-                                                  'initial_index', 'last_index'])
-            else:
-                self.db_interface.insert('tspdb.pindices',
-                                         [index_name, self.time_series_table_name, self.time_column, self.uq,
-                                          self.agg_interval, self.start_time, last_index],
-                                         columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
-                                                  'initial_timestamp', 'last_timestamp'])
-        
+        if isinstance(self.start_time, (int, np.integer)):
+            self.db_interface.insert('tspdb.pindices',
+                                     [index_name, self.time_series_table_name, self.time_column, self.uq,
+                                      self.agg_interval, self.start_time, last_index],
+                                     columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
+                                              'initial_index', 'last_index'])
+        else:
+            self.db_interface.insert('tspdb.pindices',
+                                     [index_name, self.time_series_table_name, self.time_column, self.uq,
+                                      self.agg_interval, self.start_time, last_index],
+                                     columns=['index_name', 'relation', 'time_column', 'uq', 'agg_interval',
+                                              'initial_timestamp', 'last_timestamp'])
+    
     def prepare_tsmm_to_store(self):
         for tsmm in [self.ts_model, self.var_model]:
             no_models = len(tsmm.models)
@@ -657,21 +647,25 @@ class TSPI(object):
             self.db_interface.bulk_insert(tableNames[3], cdf, include_index=True, index_label="row_id")
 
         # populate m_table data 
-        m_table = np.zeros([len(models), 7 + 5*self.no_ts])
+        m_table = np.zeros([len(models), 7 + 5], 'object')
         for i, m in models.items():
-            m_table[i - first_model, :7] = [i, m.N, m.M, m.start, m.M * m.N, m.TimesUpdated, m.TimesReconstructed]
-            for ts in range(self.no_ts):
-                    m_table[i - first_model,7+5*ts:7+5*(ts+1)] = [ m.imputation_model_score[ts], m.forecast_model_score[ts], np.nan, m.norm_mean[ts], m.norm_std[ts]]
+            m_table[i - first_model, :] = [i, m.N, m.M, m.start, m.M * m.N, m.TimesUpdated, m.TimesReconstructed, set(m.imputation_model_score), set(m.forecast_model_score), set(m.forecast_model_score_test), set(m.norm_mean), set(m.norm_std)]
+            #for ts in range(self.no_ts):
+            #        m_table[i - first_model,7+5*ts:7+5*(ts+1)] = [ m.imputation_model_score[ts], m.forecast_model_score[ts], np.nan, m.norm_mean[ts], m.norm_std[ts]]
         model_table_col = ['modelno', 'L', 'N', 'start', 'dataPoints', 'timesUpdated', 'timesRecons']
-        model_table_acc_label = ['imputation_acc_%s', 'forecasting_acc_%s', 'forecasting_test_acc_%s']
-        model_table_norm_label = ['norm_mean_%s', 'norm_std_%s']
-        for ts in range(self.no_ts):
-            model_table_col += [i%(self.value_column[ts]) for i in model_table_acc_label]
-            model_table_col += [i%(self.value_column[ts]) for i in model_table_norm_label]
+        model_table_col += ['imputation_acc', 'forecasting_acc', 'forecasting_test_acc','norm_mean', 'norm_std']
+        
+        # model_table_acc_label = ['imputation_acc_%s', 'forecasting_acc_%s', 'forecasting_test_acc_%s']
+        # model_table_norm_label = ['norm_mean_%s', 'norm_std_%s']
+        # for ts in range(self.no_ts):
+        #     model_table_col += [i%(self.value_column[ts]) for i in model_table_acc_label]
+        #     model_table_col += [i%(self.value_column[ts]) for i in model_table_norm_label]
+        types = [Integer(),Integer(),Integer(),Integer(),Integer(),Integer(),Integer(),ARRAY(Float),ARRAY(Float),ARRAY(Float),ARRAY(Float),ARRAY(Float)]
         mdf = pd.DataFrame(columns=model_table_col,
-                           data=m_table)
+                           data=list(m_table))
+        type_dict = {model_table_col[i]: types[i] for i in range(len(model_table_col))}
         if create:
-            self.db_interface.create_table(tableNames[4], mdf, 'modelno', include_index=False, index_label='modelno')
+            self.db_interface.create_table(tableNames[4], mdf, 'modelno', include_index=False, index_label='modelno', type_dict = type_dict)
         else:
             self.db_interface.delete(tableNames[4], 'modelno >= %s and modelno <= %s' % (first_model, last_model,))
             self.db_interface.bulk_insert(tableNames[4], mdf, include_index=False)
@@ -699,13 +693,15 @@ class TSPI(object):
             return 
         last_model = max(models.keys())
         index_name = tsmm.model_tables_name
-        m_table = np.zeros([len(models),7+5*self.no_ts])
+        m_table = np.zeros([len(models),7+5],object)
         columns = ['modelno', 'L', 'N', 'start', 'dataPoints', 'timesUpdated', 'timesRecons']
-        model_table_acc_label = ['imputation_acc_%s', 'forecasting_acc_%s', 'forecasting_test_acc_%s']
-        model_table_norm_label = ['norm_mean_%s', 'norm_std_%s']
-        for ts in range(self.no_ts):
-            columns += [i%(self.value_column[ts]) for i in model_table_acc_label]
-            columns += [i%(self.value_column[ts]) for i in model_table_norm_label]
+        columns+= ['imputation_acc', 'forecasting_acc', 'forecasting_test_acc','norm_mean', 'norm_std']
+        
+        # model_table_acc_label = ['imputation_acc_%s', 'forecasting_acc_%s', 'forecasting_test_acc_%s']
+        # model_table_norm_label = ['norm_mean_%s', 'norm_std_%s']
+        # for ts in range(self.no_ts):
+        #     columns += [i%(self.value_column[ts]) for i in model_table_acc_label]
+        #     columns += [i%(self.value_column[ts]) for i in model_table_norm_label]
         i = 0
         for model in models:
             if model <=1 or model == last_model: continue
@@ -713,20 +709,24 @@ class TSPI(object):
             L = matrix.shape[0]
             coeffs = self.db_interface.get_coeff_model(index_name+'_c',model-2 )
             model_row = np.array(self.db_interface.query_table(index_name+'_m',columns,'modelno = %s'%(model-2))[0])
-            index = -self.no_ts*5 +2
+            index = 9
             for ts in range(self.no_ts):
                 y_h = np.dot(matrix[:,ts::self.no_ts].T, coeffs[-L:])
                 y = models[model].lastRowObservations[ts::self.no_ts]
                 out_of_sample_error = r2_score(y,y_h)
-                model_row[index+ts*5] = out_of_sample_error
                 tsmm.models[model-2].forecast_model_score_test[ts] = out_of_sample_error
             self.db_interface.delete(index_name+'_m', 'modelno = %s' % (model-2,))
+            model_row[index] = set(tsmm.models[model-2].forecast_model_score_test)
+            for ii in [7,8,10,11]:
+                model_row[ii] = set(model_row[ii])
+            
+
             m_table[i,:] = model_row
             i+=1
         m_table = m_table[:i,:]
        
         mdf = pd.DataFrame(columns=columns,
-                           data=m_table)
+                           data=list(m_table))
        
         self.db_interface.bulk_insert(index_name+'_m', mdf, include_index=False)
 
@@ -748,9 +748,10 @@ class TSPI(object):
 
         models_info_table = tsmm.model_tables_name + '_m'
         columns = ['modelno','L','N','start','timesUpdated','timesRecons']
-        model_table_ts_label = ['imputation_acc_%s', 'forecasting_acc_%s', 'forecasting_test_acc_%s','norm_mean_%s', 'norm_std_%s']
-        for ts in range(self.no_ts):
-            columns += [i%(self.value_column[ts]) for i in model_table_ts_label]
+        columns+= ['imputation_acc', 'forecasting_acc', 'forecasting_test_acc','norm_mean', 'norm_std']
+        # model_table_ts_label = ['imputation_acc_%s', 'forecasting_acc_%s', 'forecasting_test_acc_%s','norm_mean_%s', 'norm_std_%s']
+        # for ts in range(self.no_ts):
+        #     columns += [i%(self.value_column[ts]) for i in model_table_ts_label]
         
         info = self.db_interface.query_table(models_info_table, columns_queried=columns)
         # info = self.db_interface.query_table(models_info_table, columns_queried=['*'])
@@ -759,8 +760,8 @@ class TSPI(object):
                                                   start=int(model[3]),
                                                   TimesReconstructed=int(model[5]),
                                                   TimesUpdated=int(model[4]), SSVT=tsmm.SSVT, probObservation=tsmm.p,
-                                                  updated=False, no_ts = self.no_ts, imputation_model_score = list(model[6::5]),  forecast_model_score = list(model[7::5]), forecast_model_score_test = list(model[8::5]),\
-                                                  norm_mean = list(model[9::5]) , norm_std = list(model[10::5]))
+                                                  updated=False, no_ts = self.no_ts, imputation_model_score = list(model[6]),  forecast_model_score = list(model[7]), forecast_model_score_test = list(model[8]),\
+                                                  norm_mean = list(model[9]) , norm_std = list(model[10]))
         # load last model
         last_model = len(tsmm.models) - 1
         S= self.db_interface.get_S_row(tsmm.model_tables_name + '_s', [last_model, last_model],tsmm.kSingularValuesToKeep, return_weights_decom = True)[0]
