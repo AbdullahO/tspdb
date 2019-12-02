@@ -100,7 +100,6 @@ class plpyimp(Interface):
                 sql = generate_series_sql+ select_sql
                 result = self.engine.execute(sql)
                 result = [row for row in result]
-                self.engine.notice(result)
                 return [[row['ag_'+ci] for ci in value_columns] for row in result]
         else:
              raise Exception('start and end values must either be integers or pd.timestamp')
