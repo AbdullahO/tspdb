@@ -102,7 +102,7 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
         if not uq: return _get_imputation_range(index_name, table_name, value_column, index_col, interface, t1,t2,L,k,T,last_model, value_index, no_ts)
         else:
             prediction = _get_imputation_range(index_name, table_name, value_column, index_col, interface, t1,t2,L,k,T,last_model, value_index, no_ts)
-            if (MUpdateIndex_var-1)//ts >= t2:
+            if (MUpdateIndex_var-1)//no_ts >= t2:
                 var = _get_imputation_range(index_name+'_variance',table_name, value_column, index_col, interface, t1,t2, L_var,k_var,T_var,last_model, value_index, no_ts)
             else:
                 imputations_var = _get_imputation_range(index_name+'_variance', table_name, value_column, index_col, interface, t1,(MUpdateIndex_var-1)//no_ts,L_var,k_var,T_var,last_model, value_index, no_ts)
