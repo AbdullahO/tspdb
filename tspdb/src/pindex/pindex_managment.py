@@ -649,7 +649,7 @@ class TSPI(object):
         # populate m_table data 
         m_table = np.zeros([len(models), 7 + 5], 'object')
         for i, m in models.items():
-            m_table[i - first_model, :] = [i, m.N, m.M, m.start, m.M * m.N, m.TimesUpdated, m.TimesReconstructed, set(m.imputation_model_score), set(m.forecast_model_score), set(m.forecast_model_score_test), set(m.norm_mean), set(m.norm_std)]
+            m_table[i - first_model, :] = [i, m.N, m.M, m.start, m.M * m.N, m.TimesUpdated, m.TimesReconstructed, self._array_str(list(m.imputation_model_score)), self._array_str(list(m.forecast_model_score)), self._array_str(list(m.forecast_model_score_test)), self._array_str(list(m.norm_mean)), self._array_str(list(m.norm_std))]
             #for ts in range(self.no_ts):
             #        m_table[i - first_model,7+5*ts:7+5*(ts+1)] = [ m.imputation_model_score[ts], m.forecast_model_score[ts], np.nan, m.norm_mean[ts], m.norm_std[ts]]
         model_table_col = ['modelno', 'L', 'N', 'start', 'dataPoints', 'timesUpdated', 'timesRecons']
@@ -716,9 +716,9 @@ class TSPI(object):
                 out_of_sample_error = r2_score(y,y_h)
                 tsmm.models[model-2].forecast_model_score_test[ts] = out_of_sample_error
             self.db_interface.delete(index_name+'_m', 'modelno = %s' % (model-2,))
-            model_row[index] = set(tsmm.models[model-2].forecast_model_score_test)
+            model_row[index] = self._array_str(list(tsmm.models[model-2].forecast_model_score_test))
             for ii in [7,8,10,11]:
-                model_row[ii] = set(model_row[ii])
+                model_row[ii] = self._array_str(list(model_row[ii]))
             
 
             m_table[i,:] = model_row
@@ -730,6 +730,9 @@ class TSPI(object):
        
         self.db_interface.bulk_insert(index_name+'_m', mdf, include_index=False)
 
+    def _array_str(self,array_):
+        string = str(array_)
+        return '{'+string[1:-1]+'}'
 
     def _get_range(self, t1, t2=None):
         """

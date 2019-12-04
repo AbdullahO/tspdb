@@ -51,6 +51,7 @@ if L == 0:
   TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, col_to_row_ratio = col_to_row_ratio, interface= plpyimp(plpy) ,time_column = time_column, value_column = value_column, time_series_table_name = table_name, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval, normalize = normalize, auto_update = auto_update)
 else:
   TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, L = L, interface= plpyimp(plpy) ,time_column = time_column, value_column =value_column , time_series_table_name = table_name, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval, normalize = normalize, auto_update = auto_update)
+plpy.notice('createing pindex: T = %s, L =%s'%(TSPD.ts_model.T,TSPD.ts_model.L,))
 TSPD.create_index()
 
 $$ LANGUAGE plpython3u;

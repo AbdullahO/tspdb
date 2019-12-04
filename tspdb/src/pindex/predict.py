@@ -53,7 +53,7 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
     # query pindex parameters
 
 
-    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col, value_columns = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column","indexed_column"])[0]
+    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col, value_columns, MUpdateIndex_var = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column","indexed_column",'last_TS_inc_var'])[0]
     last_model -= 1
     value_columns = value_columns.split(',')
     no_ts = len(value_columns)
@@ -89,7 +89,7 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
         
         else:
             prediction = _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1,t2, MUpdateIndex,L,k,T,last_model,interval, start_ts, last_TS_seen,no_ts,value_index, projected = projected)
-            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface, t1,t2, MUpdateIndex, L,k_var,T_var,last_model,interval, start_ts, last_TS_seen_var, no_ts,value_index,variance = True, direct_var =var_direct,  projected = projected)
+            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface, t1,t2, MUpdateIndex_var, L,k_var,T_var,last_model,interval, start_ts, last_TS_seen_var, no_ts,value_index,variance = True, direct_var =var_direct,  projected = projected)
             # if the second model is used for the second moment, subtract the squared mean to estimate the variance
             if not var_direct:
                 var = var - (prediction)**2
@@ -102,7 +102,12 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
         if not uq: return _get_imputation_range(index_name, table_name, value_column, index_col, interface, t1,t2,L,k,T,last_model, value_index, no_ts)
         else:
             prediction = _get_imputation_range(index_name, table_name, value_column, index_col, interface, t1,t2,L,k,T,last_model, value_index, no_ts)
-            var = _get_imputation_range(index_name+'_variance',table_name, value_column, index_col, interface, t1,t2, L_var,k_var,T_var,last_model, value_index, no_ts)
+            if (MUpdateIndex_var-1)//ts >= t2:
+                var = _get_imputation_range(index_name+'_variance',table_name, value_column, index_col, interface, t1,t2, L_var,k_var,T_var,last_model, value_index, no_ts)
+            else:
+                imputations_var = _get_imputation_range(index_name+'_variance', table_name, value_column, index_col, interface, t1,(MUpdateIndex_var-1)//no_ts,L_var,k_var,T_var,last_model, value_index, no_ts)
+                forecast_var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,MUpdateIndex_var//no_ts ,t2, MUpdateIndex_var,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen, no_ts,value_index,variance = True, direct_var =var_direct,projected = projected)
+                var = np.array(list(imputations_var)+list(forecast_var))
             # if the second model is used for the second moment, subtract the squared mean to estimate the variance
             if not var_direct:
                 var = var - (prediction)**2
@@ -115,8 +120,8 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
         forecast = _get_forecast_range(index_name,table_name, value_column, index_col, interface,(MUpdateIndex)//no_ts ,t2, MUpdateIndex,L,k,T,last_model,interval, start_ts,last_TS_seen, no_ts,value_index,projected = projected)
         if not uq: return list(imputations)+list(forecast)
         else:
-            imputations_var = _get_imputation_range(index_name+'_variance', table_name, value_column, index_col, interface, t1,(MUpdateIndex-1)//no_ts,L_var,k_var,T_var,last_model, value_index, no_ts)
-            forecast_var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,MUpdateIndex//no_ts ,t2, MUpdateIndex,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen, no_ts,value_index,variance = True, direct_var =var_direct,projected = projected)
+            imputations_var = _get_imputation_range(index_name+'_variance', table_name, value_column, index_col, interface, t1,(MUpdateIndex_var-1)//no_ts,L_var,k_var,T_var,last_model, value_index, no_ts)
+            forecast_var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,MUpdateIndex_var//no_ts ,t2, MUpdateIndex_var,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen, no_ts,value_index,variance = True, direct_var =var_direct,projected = projected)
             if not var_direct:
                 forecast_var = forecast_var - (forecast)**2
                 imputations_var = imputations_var - (imputations)**2
@@ -170,7 +175,7 @@ def get_prediction(index_name, table_name, value_column, interface, t, uq = True
     """
     # query pindex parameters
     
-    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col, value_columns = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column","indexed_column"])[0]
+    T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col, value_columns, MUpdateIndex_var = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column","indexed_column",'last_TS_inc_var'])[0]
     last_model -= 1
     value_columns = value_columns.split(',')
     no_ts = len(value_columns)
@@ -198,7 +203,7 @@ def get_prediction(index_name, table_name, value_column, interface, t, uq = True
         if not uq: return _get_forecast_range(index_name,table_name, value_column, index_col, interface,t, t, MUpdateIndex,L,k,T,last_model, interval, start_ts, last_TS_seen,no_ts,value_index, projected = projected)[-1]
         else:
             prediction = _get_forecast_range(index_name,table_name, value_column, index_col, interface,t, t, MUpdateIndex,L,k,T,last_model, interval, start_ts,last_TS_seen, no_ts,value_index, projected = projected)[-1]
-            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,t, t, MUpdateIndex,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen_var,no_ts,value_index,  projected = projected, variance = True, direct_var =var_direct)[-1]
+            var = _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,t, t, MUpdateIndex_var,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen_var,no_ts,value_index,  projected = projected, variance = True, direct_var =var_direct)[-1]
             
             if not var_direct:
                 var = var - (prediction)**2
@@ -209,7 +214,8 @@ def get_prediction(index_name, table_name, value_column, interface, t, uq = True
         if not uq: return _get_imputation(index_name, table_name, value_column, index_col, interface, t,L,k,T,last_model,no_ts,value_index)
         else:
             prediction = _get_imputation(index_name, table_name, value_column, index_col, interface, t,L,k,T,last_model, no_ts,value_index)
-            var = _get_imputation(index_name+'_variance',table_name, value_column, index_col, interface, t, L_var,k_var,T_var,last_model, no_ts,value_index)
+            if t > (MUpdateIndex_var - 1)//no_ts: var =  _get_forecast_range(index_name+'_variance',table_name, value_column, index_col, interface,t, t, MUpdateIndex_var,L_var,k_var,T_var,last_model,interval, start_ts,last_TS_seen_var,no_ts,value_index,  projected = projected, variance = True, direct_var =var_direct)[-1]
+            else: var = _get_imputation(index_name+'_variance',table_name, value_column, index_col, interface, t, L_var,k_var,T_var,last_model, no_ts,value_index)
             
             if not var_direct:
                 var = var - (prediction)**2
@@ -366,7 +372,6 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
                 i = cursor - i_index
                 i *= (i>0)
                 length = finish - cursor
-            print(m, m1,m2,i, length, len(res))
             Result[i:i + length] += 0.5 * unnormalize(res, norm[m-m1][0][value_index], norm[m-m1][1][value_index])
             Count [i:i + length] += 1
         Result[Count == 1] *= 2

@@ -85,16 +85,14 @@ Please see the for further details.
 
 3- Now we will make sure that PL\Python is working in postgres. To do so:
 	
-- Add Postgres and python to your system path, and add the system varaible PYTHONHOME by running the commands:
+- Run command prompt (as an administrator) and then add Postgres and python to your system path, and add the system varaible PYTHONHOME by running the commands:
 ```bash
-setx PATH "c:\Program Files\PostgreSQL\12\bin;%PATH%"
-setx PATH "c:\edb\languagepack\v1\Python-3.7;%PATH%"
-setx PATH "c:\edb\languagepack\v1\Python-3.7\Scripts;%PATH%"
+setx PATH "c:\edb\languagepack\v1\Python-3.7;c:\Program Files\PostgreSQL\12\bin;c:\edb\languagepack\v1\Python-3.7\Scripts;%PATH%"
 setx PYTHONHOME "c:\edb\languagepack\v1\Python-3.7"
-COPY "c:\edb\languagepack\v1\Python-3.7\python37.dll" "c:\Windows\System32\python.37dll" 
+COPY "c:\edb\languagepack\v1\Python-3.7\python37.dll" "c:\Windows\System32\python37.dll" 
 ```
 
-- Open Command Prompt and run  postgreSQL using the command:
+- Restart command prompt, run again as an adminstrator and run  postgreSQL using the command:
 				
 ```bash
 psql -U postgres
@@ -127,7 +125,7 @@ else, find the directory to the appropriate pip and run `pip install .`
 
 4- copy extension files to their appropriate postgres folder:
 		
-	robocopy /s extension_py3  "c:\Program Files\PostgreSQL\12\shar\extension"
+	robocopy /s extension_py3  "c:\Program Files\PostgreSQL\12\share\extension"
 
 This step copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation. LEt's install the extension now through:
 
