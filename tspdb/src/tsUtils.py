@@ -8,7 +8,9 @@ from sklearn.metrics import mean_squared_error
 import copy
 from numpy.linalg import qr  as qr
 
-
+def unnormalize(arr, mean, std):
+    return arr *std + mean
+    
 def updateSVD(D, uk, sk, vk):
     vk = vk.T
     m = vk.shape[1]
@@ -102,36 +104,36 @@ def rmseMissingData(array1, array2):
     return rmse(subset1, subset2)
 
 
-def normalize(array, max, min, pos = False):
-    """
+# def normalize(array, max, min, pos = False):
+#     """
 
-    :param array:
-    :param max:
-    :param min:
-    :param pos: if true, normalize between 0 and 1
-    :return:
-    """
-
-
-    if pos:
-        array = (array - min)/(max-min)
-    else:
-        diff = 0.5 * (min + max)
-        div = 0.5 * (max - min)
-        array = (array - diff) / div
-    return array
-
-def unnormalize(array, max, min, pos = False):
+#     :param array:
+#     :param max:
+#     :param min:
+#     :param pos: if true, normalize between 0 and 1
+#     :return:
+#     """
 
 
-    if pos:
-        array = array *(max-min) + min
-    else:
-        diff = 0.5 * (min + max)
-        div = 0.5 * (max - min)
+#     if pos:
+#         array = (array - min)/(max-min)
+#     else:
+#         diff = 0.5 * (min + max)
+#         div = 0.5 * (max - min)
+#         array = (array - diff) / div
+#     return array
 
-        array = (array * div) + diff
-    return array
+# def unnormalize(array, max, min, pos = False):
+
+
+#     if pos:
+#         array = array *(max-min) + min
+#     else:
+#         diff = 0.5 * (min + max)
+#         div = 0.5 * (max - min)
+
+#         array = (array * div) + diff
+#     return array
 
 
 def randomlyHideValues(array, pObservation):

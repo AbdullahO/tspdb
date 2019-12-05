@@ -144,7 +144,10 @@ from tspdb.src.pindex.pindex_managment import TSPI, load_pindex_u
 from tspdb.src.database_module.plpy_imp import plpyimp
 #check if table is ts and columns are of appropriate type 
 # Build index 
-TSPD = load_pindex_u(plpyimp(plpy),index_name)
+index_name_ = index_name
+if 'tspdb.' not in index_name_[:6]: 
+    index_name_ = 'tspdb.'+index_name_
+TSPD = load_pindex_u(plpyimp(plpy),index_name_)
 if  TSPD:
   TSPD.update_index()
 $$ LANGUAGE plpython3u;

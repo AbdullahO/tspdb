@@ -12,7 +12,7 @@ from sklearn.metrics import r2_score
 import time
 import pickle
 from sqlalchemy.types import *
-
+from tspdb.src.tsUtils import unnormalize 
 def delete_pindex(db_interface, index_name, schema='tspdb'):
     """
     Delete Pindex index_name from database.
@@ -260,7 +260,7 @@ class TSPI(object):
     # mean_model:               (TSMM object) the means prediction model object
     # var_model:                (TSMM object) the variance prediction model object
 
-    def __init__(self, rank = None, rank_var = 1, T=int(1e5), T_var=None, gamma=0.2, T0=1000, col_to_row_ratio=10,
+    def __init__(self, rank = None, rank_var = 1, T=int(1e5), T_var=None, gamma=0.2, T0=100, col_to_row_ratio=10,
                  interface=Interface, agg_interval=None, start_time=None, aggregation_method='average',
                  time_series_table_name= "", time_column = "", value_column = [''], SSVT=False, p=1.0, direct_var=True, L=None,  recreate=True,
                  index_name=None, _dir='', schema='tspdb', persist_L = None, normalize = True, auto_update = True):
@@ -705,14 +705,19 @@ class TSPI(object):
         i = 0
         for model in models:
             if model <=1 or model == last_model: continue
-            matrix = models[model].matrix[:-1,:]
+            matrix = np.array(models[model].matrix[:-1,:])
+            print(matrix.shape)
             L = matrix.shape[0]
             coeffs = self.db_interface.get_coeff_model(index_name+'_c',model-2 )
+            coeffs_ts = coeffs[-self.no_ts:]
+            coeffs = coeffs[:-self.no_ts]
             model_row = np.array(self.db_interface.query_table(index_name+'_m',columns,'modelno = %s'%(model-2))[0])
             index = 9
             for ts in range(self.no_ts):
-                y_h = np.dot(matrix[:,ts::self.no_ts].T, coeffs[-L:])
-                y = models[model].lastRowObservations[ts::self.no_ts]
+                matrix_ = unnormalize(np.array(matrix[:,ts::self.no_ts].T), models[model].norm_mean[ts], models[model].norm_std[ts])
+                y_h = np.dot(matrix_, coeffs[:])
+                y_h = y_h + coeffs_ts[ts] 
+                y = unnormalize(models[model].lastRowObservations[ts::self.no_ts], models[model].norm_mean[ts], models[model].norm_std[ts])
                 out_of_sample_error = r2_score(y,y_h)
                 tsmm.models[model-2].forecast_model_score_test[ts] = out_of_sample_error
             self.db_interface.delete(index_name+'_m', 'modelno = %s' % (model-2,))
