@@ -1,5 +1,15 @@
-# tspDB - Time Series Predict DB
-Time Series Forecasting and Imputation implemedted on top of PostgreSQL
+# tspDB
+**tspDB enables predictive query functionality in PostgreSQL by building an additional “prediction index” for a collection of time-series of interest.**
+
+A prediction index will allow for fast data retrieval, but for entries that are:
+
+1- At a future time step (i.e. forecasting);
+
+2- Missing/corrupted by noise (i.e. imputation)
+
+
+Our paper [here](https://arxiv.org/abs/1903.07097) provides more information about how tspDB works and its performance.  
+
 
 This work has the following dependencies:
 
@@ -7,82 +17,9 @@ This work has the following dependencies:
 - Python 3.5+ with the libraries: (numpy, pandas, scipy, sklearn)
  
 
-### Installation (Mac OS)
+## Installation
 
-#### Prerequisites (start from here, the later stages assume that you downloaded postgres this way):
-
-1- Install postgreSQL 11.5 from here: https://www.enterprisedb.com/thank-you-downloading-postgresql?anid=1256715
-
-2- After the installation is done, we need to download the Language Pack. To do that, run Stack Builder (which was installed with PostgreSQL11) and follow these steps: 
-		a- From the first screen of stack builder, choose the postgres installation you want to install the language pack on: (you should select PostgreSQL 11.5, your only option if you haven't installed PostgreSQL before) and click next
-		b- from the application list choose 'Add-ons, tools, and utilities -> EDB Language Pack '
-		c- Proceed to download and install the language package.
-
-3- Now we will make sure that PL\Python is working in postgres. To do so:
-		a- for convenience sake, add the postgreSQL directory to the path:
-				
-	sudo vim /etc/paths
-click 'i' to go into insert mode add '/Library/PostgreSQL/11/bin' to the first line then click 'Esc' and ':x' to save and quit 
-restart the terminal
-	
-b- run  postgreSQL using the command:
-				
-	psql -U postgres
-
-c- from inside postgres:
-				
-	CREATE EXTENSION plpython3u;
-
-d- if you see  "CREATE EXTENSION" that means it is working properly.
-
-
-#### Installing tspdb
-
-1- Download the package through cloning the reopsitory 
-
-	git clone https://github.com/AbdullahO/tspdb.git
-	
-
-2-  cd into the package directory
-				
-	cd tspdb
-
-3- run pip for the python Postgres uses, if you downloaded Postgres the same way described above, use the follwoing command:		
-		
-	sudo /Library/edb/languagepack-11/Python-3.6/bin/pip install . 
-
-else, find the directory to the appropriate pip and run pip install . 
-
-4- run:
-		
-	cd extension_py3 && sudo make install
-
-This step uses pg_config to find out where PostgreSQL stores its extension files, if you have another installation of Postgres, this might not work. If it does not, copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation
-
-5- run postgreSQL using the command:
-		
-	psql -U postgres
-
-6- create tspdb extension by running
-		
-	CREATE EXTENSION tspdb;
-
-#### Testing tspdb
-
-1- test the package through running 
-
-	SELECT test_tspdb();
-
-if you get at the last line 
-	
-	NOTICE:  Pindices successfully created
-then tspdb should be working properly
-
-2- check the built pindices through
-		
-	SELECT * from list_pindices();
-
-this shows you a list of the predictive indices built in the aforementioned test
+For insallation instruction, go to the installation page [here](https://github.com/AbdullahO/tspdb/blob/master/installation.md)
 
 ## Getting Started
 The main functionalities of tspDB is enabling predictive queries, which are enabled via creating a prediction index on your time series table.
@@ -120,11 +57,11 @@ SELECT ts_7 FROM mixturets2 WHERE time = 1;
 ```
 Let's *impute* this point by running:
 ```sql
-SELECT * FROM predict('mixturets2','ts_7',10,'pindex1');
+SELECT * FROM predict('mixturets2','ts_7',1,'pindex1');
 ```
 Which will return predictions as well as upper an lower bound for a 95% confidence interval. We can get a tighter bound with lower confidence by changing the confidence interval to, say 80%: 
 ```sql
-SELECT * FROM predict('mixturets2','ts_7',10,'pindex1', c=> 80);
+SELECT * FROM predict('mixturets2','ts_7',1,'pindex1', c=> 80);
 ```
 The prediction index also support forecasting queries using the same function. For example, you can forecast the value of column `ts_7` at time 100010, ten points ahead of what exists in the database by running:
 ```sql
@@ -141,3 +78,10 @@ or *forecast* the next 10 points using:
 ```sql
 SELECT * FROM predict_range('mixturets2','ts_7',100001,100010,'pindex1');
 ```
+
+For further examples, check the python notebook examples  [here](https://github.com/AbdullahO/tspdb/blob/master\notebook_examples)
+
+## Contributing 
+Please visit our [Github](https://github.com/AbdullahO/tspdb/blob/master/CONTRIBUTING.md) page for more information 
+## License 
+This work is licensed under the Apache 2.0 License. 
