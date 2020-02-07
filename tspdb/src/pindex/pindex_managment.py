@@ -56,9 +56,9 @@ def load_pindex_u(db_interface,index_name):
                                         columns_queried=['T', 'T0', 'k', 'gamma', 'var_direct_method', 'k_var', 'T_var',
                                                          'soft_thresholding', 'start_time', 'aggregation_method',
                                                          'agg_interval', 'persist_l','col_to_row_ratio', 'L','last_TS_fullSVD','last_TS_inc',
-                                                              'last_TS_seen' ,'time_series_table_name', 'indexed_column','time_column'])
+                                                              'last_TS_seen', 'p' ,'time_series_table_name', 'indexed_column','time_column'])
     
-    T, T0, k, gamma, direct_var, k_var, T_var, SSVT, start_time, aggregation_method, agg_interval, persist_l, col_to_row_ratio, L, ReconIndex, MUpdateIndex, TimeSeriesIndex = meta_inf[0][:-3]
+    T, T0, k, gamma, direct_var, k_var, T_var, SSVT, start_time, aggregation_method, agg_interval, persist_l, col_to_row_ratio, L, ReconIndex, MUpdateIndex, TimeSeriesIndex , p= meta_inf[0][:-3]
     time_series_table_name, value_column, time_column = meta_inf[0][-3:]
     last = get_bound_time(db_interface, time_series_table_name, time_column ,'max')
     value_columns = value_column.split(',')
@@ -77,16 +77,22 @@ def load_pindex_u(db_interface,index_name):
         print(L, last_index, MUpdateIndex)
         print('nothing major to update')
         return False
-
+    if p < 1.0:
+        fill_in_missing = False
+    else: fill_in_missing = True
     TSPD = TSPI(interface=db_interface, index_name=index_name, schema=None, T=T, T0=T0, rank=k, gamma=gamma,
                 direct_var=direct_var, rank_var=k_var, T_var=T_var, SSVT=SSVT, start_time=start_time,
-                aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table_name=time_series_table_name, time_column = time_column, value_column = value_columns ,persist_L = persist_l,col_to_row_ratio = col_to_row_ratio)
+                aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table_name=time_series_table_name, 
+                time_column = time_column, value_column = value_columns ,persist_L = persist_l,col_to_row_ratio = col_to_row_ratio, fill_in_missing = fill_in_missing, p =p)
     
-    model_start = ReconIndex - (ReconIndex%(T//2))
-    new_points_ratio = (last_index*no_ts - ReconIndex)/(ReconIndex - model_start)
     model_no = int(max((last_index - 1) / (T / 2) - 1, 0))
     last_model_no = int(max((MUpdateIndex - 1) / (T / 2) - 1, 0))
-    print(model_no, last_model_no, new_points_ratio, ReconIndex, model_start, last_index)
+    model_start = last_model_no*T/2
+    print(model_no, last_model_no, ReconIndex, model_start, last_index)
+    
+    new_points_ratio = (last_index*no_ts - ReconIndex)/(ReconIndex - model_start)
+    print(new_points_ratio)
+    
     if new_points_ratio < gamma and model_no <= last_model_no and last_index%(T//2) != 0:
         print('marginal update')
         start = (MUpdateIndex)//TSPD.no_ts
@@ -97,7 +103,7 @@ def load_pindex_u(db_interface,index_name):
         end = (TimeSeriesIndex - 1)//TSPD.no_ts
     # initiate TSPI object 
     TSPD.ts_model = TSMM(TSPD.k, TSPD.T, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
-                         model_table_name=index_name, SSVT=TSPD.SSVT, L=L, persist_L = TSPD.persist_L, no_ts = TSPD.no_ts)
+                         model_table_name=index_name, SSVT=TSPD.SSVT, L=L, persist_L = TSPD.persist_L, no_ts = TSPD.no_ts, fill_in_missing = fill_in_missing, p =p)
     TSPD.ts_model.ReconIndex, TSPD.ts_model.MUpdateIndex, TSPD.ts_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
 
     # load variance models if any
@@ -111,7 +117,7 @@ def load_pindex_u(db_interface,index_name):
                                                                                                       'last_TS_seen_var'])[0]
 
         TSPD.var_model = TSMM(TSPD.k_var, TSPD.T_var, TSPD.gamma, TSPD.T0, col_to_row_ratio=col_to_row_ratio,
-                              model_table_name=index_name + "_variance", SSVT=TSPD.SSVT, L=L, persist_L =TSPD.persist_L, no_ts = TSPD.no_ts)
+                              model_table_name=index_name + "_variance", SSVT=TSPD.SSVT, L=L, persist_L =TSPD.persist_L, no_ts = TSPD.no_ts, fill_in_missing = fill_in_missing, p =p)
         TSPD.var_model.ReconIndex, TSPD.var_model.MUpdateIndex, TSPD.var_model.TimeSeriesIndex = ReconIndex, MUpdateIndex, TimeSeriesIndex
 
     print('loading meta_model time', time.time()-t)
@@ -133,8 +139,10 @@ def load_pindex_u(db_interface,index_name):
             end_var = (TSPD.var_model.TimeSeriesIndex - 1)//TSPD.no_ts
             start = max(start -1,0)
             TT = min(end_var-start+1, TSPD.var_model.T//TSPD.no_ts)
+            if (end_var-start+1) - TT >0:
+                start +=  (end_var-start+1) - TT 
             mean = np.zeros([TT,TSPD.no_ts])
-            print(mean.shape, start, end_var )
+            print(mean.shape, start, end_var, TSPD.var_model.T )
             start_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval, start)
             end_point = index_ts_inv_mapper(TSPD.start_time, TSPD.agg_interval, end_var)
             print(start, end_var, start_point,end_point,TT)
@@ -262,8 +270,8 @@ class TSPI(object):
 
     def __init__(self, rank = None, rank_var = 1, T=int(1e5), T_var=None, gamma=0.2, T0=100, col_to_row_ratio=10,
                  interface=Interface, agg_interval=None, start_time=None, aggregation_method='average',
-                 time_series_table_name= "", time_column = "", value_column = [''], SSVT=False, p=1.0, direct_var=True, L=None,  recreate=True,
-                 index_name=None, _dir='', schema='tspdb', persist_L = None, normalize = True, auto_update = True):
+                 time_series_table_name= "", time_column = "", value_column = [''], SSVT=False, p=None, direct_var=True, L=None,  recreate=True,
+                 index_name=None, _dir='', schema='tspdb', persist_L = None, normalize = True, auto_update = True, fill_in_missing = True):
         if gamma <0 or gamma >=1:
             gamma = 0.5
         self._dir = _dir
@@ -317,12 +325,13 @@ class TSPI(object):
 
         if isinstance(self.start_time, (int, np.integer)):
             self.agg_interval = 1.
-
+        self.fill_in_missing = fill_in_missing
         self.ts_model = TSMM(self.k, T, self.gamma, self.T0, col_to_row_ratio=col_to_row_ratio,
-                             model_table_name=self.index_name, SSVT=self.SSVT, p=p, L=L, persist_L = self.persist_L, no_ts = self.no_ts, normalize = self.normalize)
+                             model_table_name=self.index_name, SSVT=self.SSVT, p=None, L=L, persist_L = self.persist_L, 
+                             no_ts = self.no_ts, normalize = self.normalize, fill_in_missing = self.fill_in_missing)
         self.var_model = TSMM(self.k_var, T_var, self.gamma, self.T0, col_to_row_ratio=col_to_row_ratio,
-                              model_table_name=self.index_name + "_variance", SSVT=self.SSVT, p=p,
-                              L=L, persist_L = self.persist_L, no_ts = self.no_ts, normalize = self.normalize)
+                              model_table_name=self.index_name + "_variance", SSVT=self.SSVT, p=None,
+                              L=L, persist_L = self.persist_L, no_ts = self.no_ts, normalize = self.normalize, fill_in_missing = self.fill_in_missing)
         self.direct_var = direct_var
         self.T = self.ts_model.T
         self.T_var = self.var_model.T
@@ -456,7 +465,7 @@ class TSPI(object):
                   'last_TS_inc_var': [self.var_model.MUpdateIndex], 'aggregation_method': [self.aggregation_method],
                   'agg_interval': [self.agg_interval],
                   'start_time': [self.start_time], 'last_TS_fullSVD_var': [self.var_model.ReconIndex],
-                  'var_direct_method': [self.direct_var], 'persist_l': [self.persist_L]})
+                  'var_direct_method': [self.direct_var], 'persist_l': [self.persist_L], 'p': [self.ts_model.p]})
         
         # ------------------------------------------------------
         # EDIT: Due to some incompatibiliy with PSQL timestamp types 
@@ -787,9 +796,19 @@ class TSPI(object):
     #####################################
     # DELETE (Not needed anymore)
     #####################################
-    def _get_forecast_range_local(self, t1, t2, model, input=None):
-        coeffs = np.mean(np.array([m.weights for m in model.models.values()[:10]]), 0)
+    def _get_forecast_range_local(self, t1, t2, model, input=None, num_models = 10):
+        coeffs = model.models[0].weights
         no_coeff = len(coeffs)
+        coeffs = np.zeros(coeffs.shape)
+        for i in range(num_models):
+            print(i)
+            if len(model.models)-1-i < 0: 
+                num_models = i
+                break 
+            coeffs_model = model.models[len(model.models)-1-i].weights
+            coeffs[-len(coeffs_model):]+= coeffs_model
+            # coeffs_model = np.mean(np.array([m.weights for m in list(model.models.values())[-num_models-1:-1]]), 0)
+        coeffs = coeffs/(num_models)
         output = np.zeros([t2 - t1 + 1 + no_coeff])
 
         if input is None:

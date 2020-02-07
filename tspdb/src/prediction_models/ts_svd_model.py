@@ -24,12 +24,12 @@ class SVDModel(object):
     #                               the latest data-points for prediction
     def __init__(self, seriesToPredictKey, kSingularValuesToKeep, N, M,updated = True, probObservation=1.0, svdMethod='numpy', otherSeriesKeysArray=[],\
      includePastDataOnly=True, start = 0, TimesUpdated = 0, TimesReconstructed =0, SSVT = False , no_ts = 1, forecast_model_score = None,forecast_model_score_test = None,\
-      imputation_model_score = None, norm_mean = [], norm_std = []):
+      imputation_model_score = None, norm_mean = [], norm_std = [], fill_in_missing = True):
 
         self.seriesToPredictKey = seriesToPredictKey
         self.otherSeriesKeysArray = otherSeriesKeysArray
         self.includePastDataOnly = includePastDataOnly
-
+        self.fill_in_missing = fill_in_missing
         self.N = N
         self.M = M
         self.start = start
@@ -48,6 +48,8 @@ class SVDModel(object):
         self.Vkw = None
         self.skw = None
         self.p = probObservation
+        if self.fill_in_missing:
+            self.p = 1.0
         self.weights = None
         self.SSVT = SSVT
         self.soft_threshold = 0
@@ -112,11 +114,11 @@ class SVDModel(object):
         (self.skw, self.Ukw, self.Vkw) = svdMod.reconstructMatrix(self.kSingularValues, returnMatrix=False)
         soft_threshold = 0
         if self.SSVT: soft_threshold = svdMod.next_sigma
-        matrix = tsUtils.matrixFromSVD(self.skw, self.Ukw, self.Vkw, soft_threshold=soft_threshold)
-        newMatrixPInv = tsUtils.pInverseMatrixFromSVD(self.skw, self.Ukw, self.Vkw,soft_threshold=soft_threshold)
+        matrix = tsUtils.matrixFromSVD(self.skw, self.Ukw, self.Vkw, soft_threshold=soft_threshold, probability = self.p)
+        newMatrixPInv = tsUtils.pInverseMatrixFromSVD(self.skw, self.Ukw, self.Vkw,soft_threshold=soft_threshold, probability = self.p)
         self.weights = np.dot(newMatrixPInv.T, self.lastRowObservations)
         for i in range(self.no_ts):
-            self.forecast_model_score[i] = r2_score(self.lastRowObservations[i::self.no_ts], np.dot(matrix[:,i::self.no_ts].T,self.weights))
+            self.forecast_model_score[i] = r2_score(self.lastRowObservations[i::self.no_ts]/self.p, np.dot(matrix[:,i::self.no_ts].T,self.weights))
 
     # return the imputed matrix
     def denoisedDF(self):
@@ -153,7 +155,7 @@ class SVDModel(object):
         else:
             return NewColsDenoised[ind]
 
-    def _assignData(self, keyToSeriesDF, missingValueFill=True):
+    def _assignData(self, keyToSeriesDF):
 
         setAllKeys = set(self.otherSeriesKeysArray)
         setAllKeys.add(self.seriesToPredictKey)
@@ -161,12 +163,8 @@ class SVDModel(object):
         if (len(set(keyToSeriesDF.columns.values).intersection(setAllKeys)) != len(setAllKeys)):
             raise Exception('keyToSeriesDF does not contain ALL keys provided in the constructor.')
 
-        if (missingValueFill == True):
-            # impute with the least informative value (middle)
-            # max = np.nanmax(keyToSeriesDF)
+        if (self.fill_in_missing == True):
 
-            # min = np.nanmin(keyToSeriesDF)
-            # diff = 0.5*(min + max)
             keyToSeriesDF = keyToSeriesDF.fillna(method = 'ffill')
             keyToSeriesDF = keyToSeriesDF.fillna(method = 'bfill')
         else:
@@ -192,7 +190,6 @@ class SVDModel(object):
         # finally add the series of interest at the bottom
        # tempMatrix = tsUtils.arrayToMatrix(keyToSeriesDF[self.seriesToPredictKey][-1*T:].values, self.N, matrix_cols)
         self.matrix[seriesIndex*single_ts_rows: (seriesIndex+1)*single_ts_rows, :] = tsUtils.arrayToMatrix(keyToSeriesDF[self.seriesToPredictKey][-1*T:].values, single_ts_rows, matrix_cols)
-        
         # set the last row of observations
         self.lastRowObservations = copy.deepcopy(self.matrix[-1, :])
 
@@ -205,7 +202,7 @@ class SVDModel(object):
 
         # assign data to class variables
 
-        self._assignData(keyToSeriesDF, missingValueFill=True)
+        self._assignData(keyToSeriesDF)
         obs = self.matrix.flatten('F')
         obs_matrix = self.matrix.copy()
         # now produce a thresholdedthresholded/de-noised matrix. this will over-write the original data matrix
@@ -222,16 +219,13 @@ class SVDModel(object):
             self.imputation_model_score[i] = r2_score(obs,self.denoisedTS(ts = i))
         self._computeWeights()
 
-    def updateSVD(self,D, method = 'UP', missingValueFill = True):
+    def updateSVD(self,D, method = 'UP'):
         assert (len(D) % self.N == 0)
-        if (missingValueFill == True):
+        if (self.fill_in_missing == True):
             # impute with the least informative value (middle)
-            max = np.nanmax(D)
-            if np.isnan(max): max = 0
-            min = np.nanmin(D)
-            if np.isnan(min): min = 0
-            diff = 0.5*(min + max)
-            D[np.isnan(D)] = diff
+            D = pd.DataFrame(D).fillna(method = 'ffill').values
+            D = pd.DataFrame(D).fillna(method = 'ffill').values
+            
         else: D[np.isnan(D)] = 0
         D = D.reshape([self.N,int(len(D)/self.N)], order = 'F')
 

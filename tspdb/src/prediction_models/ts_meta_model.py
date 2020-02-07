@@ -11,12 +11,12 @@ class TSMM(object):
     # gamma:                    (float) (0,1) fraction of T after which the model is updated
     # col_to_row_ratio:         (int) the ration of no. columns to the number of rows in each sub-model
 
-    def __init__(self, kSingularValuesToKeep=None, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=1.0, L=None, model_table_name='', persist_L = False, no_ts = 1, normalize = True):
+    def __init__(self, kSingularValuesToKeep=None, T=int(1e5), gamma=0.2, T0=1000, col_to_row_ratio=1, SSVT=False, p=None, L=None, model_table_name='', persist_L = False, no_ts = 1, normalize = True, fill_in_missing = True):
         self.kSingularValuesToKeep = kSingularValuesToKeep
         
         self.no_ts = no_ts
         self.col_to_row_ratio = col_to_row_ratio
-
+        self.fill_in_missing = fill_in_missing 
         # if self.col_to_row_ratio % (self.no_ts*2) != 0:
         #     self.col_to_row_ratio = self.col_to_row_ratio + (2*self.no_ts-self.col_to_row_ratio %(2*self.no_ts))
         # print(self.col_to_row_ratio)
@@ -93,7 +93,10 @@ class TSMM(object):
         
         if N == 0:
             return
-
+        # if the number of models is zero, get the estimate of p
+        if len(self.models) == 0 and self.p == None:
+            self.p = 1.0 - np.sum(np.isnan(NewEntries))/NewEntries.size
+            if self.fill_in_missing: self.p = 1.0
         current_no_models = len(self.models)
         updated_no_models = self.get_model_index(self.TimeSeriesIndex + N) + 1
 
@@ -137,7 +140,7 @@ class TSMM(object):
                     i += 1
                     if 0 in self.models:
                         self.kSingularValuesToKeep = self.models[0].kSingularValues
-                
+
                 else:
                     self.updateTS(NewEntries[i * int((self.T//self.no_ts)/2): (i + 1) * int((self.T//self.no_ts)/ 2),:])
                     self.fitModels()
@@ -173,7 +176,7 @@ class TSMM(object):
             self.TimeSeries = self.TimeSeries[-num_ts_obs:,:]
 
     def fitModels(self):
-
+            
         # Determine which model to fit
         ModelIndex = self.get_model_index(self.TimeSeriesIndex)
         # Determine the number of new Entries since the last reconstruction of a model
@@ -192,15 +195,17 @@ class TSMM(object):
 
         # Build a new model
         if ModelIndex not in self.models:
-
             # start with the last T/2 entries from previous model
             initEntries = self.TimeSeries[int(int(self.T / 2) - self.TimeSeriesIndex % (self.T / 2))//self.no_ts:,:]
             start = self.TimeSeriesIndex - self.TimeSeriesIndex % int(self.T / 2) - int(self.T / 2)
             # if ModelIndex != 0: assert len(initEntries) == self.T / 2
             rect = 1
-            if lenEntriesSinceCons == self.T // 2 or ModelIndex == 0:
+            if lenEntriesSinceCons == self.T // 2:
                 initEntries = self.TimeSeries[:,:]
                 start = max(self.TimeSeriesIndex - self.T, 0)
+            if ModelIndex == 0:
+                initEntries = self.TimeSeries[:,:]
+                start = 0
 
             if self.persist_L: N = self.L
             else: N = int(np.sqrt(initEntries.size / (self.col_to_row_ratio)))
@@ -221,22 +226,23 @@ class TSMM(object):
                 norm_std = np.ones(self.no_ts)
 
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start=int(start), SSVT=self.SSVT,
-                                               probObservation=self.p, no_ts = self.no_ts, norm_mean = norm_means, norm_std = norm_std)
+                                               probObservation=self.p, no_ts = self.no_ts, norm_mean = norm_means, norm_std = norm_std, fill_in_missing = self.fill_in_missing)
             flattened_obs = inc_obs.reshape([N,M], order = 'F')
             flattened_obs = flattened_obs[:,np.arange(M_ts*self.no_ts).reshape([self.no_ts,M_ts]).flatten('F')]
             self.models[ModelIndex].fit(pd.DataFrame(data={'t1': flattened_obs.flatten('F')}))
+            self.models[ModelIndex].obs_ = flattened_obs.flatten('F') 
+
             old_mupdate_index = self.MUpdateIndex
             self.ReconIndex = max(N * M + start, old_mupdate_index)
             self.MUpdateIndex = self.ReconIndex
-
             if lenEntriesSinceCons == self.T // 2 or ModelIndex == 0:
                 return
         
         Model = self.models[ModelIndex]
         lenEntriesSinceCons = self.TimeSeriesIndex - self.ReconIndex
         ModelLength = Model.N * Model.M + Model.start
-        if (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma) or (self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to recompute SVD
-            TSlength = self.TimeSeriesIndex - Model.start
+        TSlength = self.TimeSeriesIndex - Model.start
+        if TSlength <= len(self.TimeSeries) and ((float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma) or (self.TimeSeriesIndex % (self.T / 2) == 0)):  # condition to recompute SVD
             if self.persist_L: N = self.L
             else: N = int(np.sqrt(TSlength/self.col_to_row_ratio))
             M = int(TSlength / N)
@@ -260,7 +266,8 @@ class TSMM(object):
             
             self.models[ModelIndex] = SVDModel('t1', self.kSingularValuesToKeep, N, M, start= int(Model.start),
                                                TimesReconstructed=Model.TimesReconstructed + 1,
-                                               TimesUpdated=Model.TimesUpdated, SSVT=self.SSVT, probObservation=self.p, no_ts = self.no_ts, norm_mean = norm_means, norm_std = norm_std)
+                                               TimesUpdated=Model.TimesUpdated, SSVT=self.SSVT, probObservation=self.p, 
+                                               no_ts = self.no_ts, norm_mean = norm_means, norm_std = norm_std, fill_in_missing = self.fill_in_missing)
             
             self.models[ModelIndex].fit(pd.DataFrame(data={'t1': flattened_obs.flatten('F')}))
             self.ReconIndex = N * M + Model.start

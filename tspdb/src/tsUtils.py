@@ -81,7 +81,7 @@ def pInverseMatrixFromSVD(sk, Uk, Vk, soft_threshold=0,probability=1.0):
         if (s[i] > 0.0):
             s[i] = 1.0/s[i]
 
-    p = 1.0/probability
+    p = probability
     return matrixFromSVD(s, Vk, Uk, probability=p)
 
 
