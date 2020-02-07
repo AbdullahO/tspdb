@@ -715,12 +715,11 @@ class TSPI(object):
         for model in models:
             if model <=1 or model == last_model: continue
             matrix = np.array(models[model].matrix[:-1,:])
-            print(matrix.shape)
             L = matrix.shape[0]
             coeffs = self.db_interface.get_coeff_model(index_name+'_c',model-2 )
             coeffs_ts = coeffs[-self.no_ts:]
             coeffs = coeffs[:-self.no_ts]
-            model_row = np.array(self.db_interface.query_table(index_name+'_m',columns,'modelno = %s'%(model-2))[0])
+            model_row = np.array(self.db_interface.query_table(index_name+'_m',columns,'modelno = %s'%(model-2))[0],'object')
             index = 9
             for ts in range(self.no_ts):
                 matrix_ = unnormalize(np.array(matrix[:,ts::self.no_ts].T), models[model].norm_mean[ts], models[model].norm_std[ts])
