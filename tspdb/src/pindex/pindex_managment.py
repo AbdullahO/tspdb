@@ -72,7 +72,7 @@ def load_pindex_u(db_interface,index_name):
     agg_interval = float(agg_interval)
     # ------------------------------------------------------
     no_ts = len(value_columns)
-    last_index = index_ts_mapper(start_time, agg_interval, last)
+    last_index = index_ts_mapper(start_time, agg_interval, last) + 1
     if last_index - MUpdateIndex//no_ts <= 5*L:
         print(L, last_index, MUpdateIndex)
         print('nothing major to update')

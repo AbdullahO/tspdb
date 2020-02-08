@@ -121,6 +121,7 @@ class TSMM(object):
             if current_no_models > 0:
                 fillFactor = (self.TimeSeriesIndex % int(self.T /2))
                 FillElements = (int((self.T / 2 - fillFactor)) * (fillFactor > 0)) // self.no_ts
+                print('Fill', FillElements)
                 if FillElements > 0:
                     self.updateTS(NewEntries[:FillElements,:])
                     self.fitModels()
@@ -242,7 +243,8 @@ class TSMM(object):
         lenEntriesSinceCons = self.TimeSeriesIndex - self.ReconIndex
         ModelLength = Model.N * Model.M + Model.start
         TSlength = self.TimeSeriesIndex - Model.start
-        if TSlength <= len(self.TimeSeries) and ((float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma) or (self.TimeSeriesIndex % (self.T / 2) == 0)):  # condition to recompute SVD
+        print(TSlength, len(self.TimeSeries), ModelIndex)
+        if (TSlength <= len(self.TimeSeries) and (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma)) or (self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to recompute SVD
             if self.persist_L: N = self.L
             else: N = int(np.sqrt(TSlength/self.col_to_row_ratio))
             M = int(TSlength / N)
@@ -290,7 +292,7 @@ class TSMM(object):
                 D = flattened_obs.flatten('F')
                 # p = int(len(D) / N)
                 # D = D[:N * p]
-
+                print(D.shape)
                 Model.updateSVD(D, 'UP')
                 self.MUpdateIndex = Model.N * Model.M + Model.start
                 Model.updated = True
