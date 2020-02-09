@@ -243,8 +243,7 @@ class TSMM(object):
         lenEntriesSinceCons = self.TimeSeriesIndex - self.ReconIndex
         ModelLength = Model.N * Model.M + Model.start
         TSlength = self.TimeSeriesIndex - Model.start
-        print(TSlength, len(self.TimeSeries), ModelIndex)
-        if (TSlength <= len(self.TimeSeries) and (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma)) or (self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to recompute SVD
+        if (TSlength <= self.TimeSeries.size and (float(lenEntriesSinceCons) / (self.ReconIndex - Model.start) >= self.gamma)) or (self.TimeSeriesIndex % (self.T / 2) == 0):  # condition to recompute SVD
             if self.persist_L: N = self.L
             else: N = int(np.sqrt(TSlength/self.col_to_row_ratio))
             M = int(TSlength / N)

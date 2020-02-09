@@ -656,13 +656,13 @@ class plpyimp(Interface):
 
     def create_insert_trigger(self, table_name, index_name):
         
-        function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \n \
-        try: plpy.execute("select update_pindex('%s');") \n \
-        except: plpy.notice('Pindex is not updated, insert is carried forward') \n
-        $$LANGUAGE plpython3u;'''
+        # function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \n \
+        # try: plpy.execute("select update_pindex('%s');") \n \
+        # except: plpy.notice('Pindex is not updated, insert is carried forward') \n
+        # $$LANGUAGE plpython3u;'''
         function = '''CREATE or REPLACE FUNCTION %s_update_pindex_tg() RETURNS trigger  AS $$ \n \
         plpy.execute("select update_pindex('%s');")\
-         $$LANGUAGE plpython3u;'''
+        $$LANGUAGE plpython3u;'''
         self.engine.execute(function %(index_name, index_name))
         query = "CREATE TRIGGER tspdb_update_pindex_tg_%s AFTER insert ON "%index_name[6:] + table_name + " FOR EACH STATEMENT EXECUTE PROCEDURE " +index_name+"_update_pindex_tg(); "
         self.engine.execute(query)

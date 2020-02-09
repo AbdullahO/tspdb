@@ -38,7 +38,6 @@ class SVDWrapper:
         
         S = np.cumsum(self.s**2)
         S = S/S[-1]
-
         k = np.argmax(S>self.threshold)+1
         # correct the dimensions of V
         self.V = self.V.T

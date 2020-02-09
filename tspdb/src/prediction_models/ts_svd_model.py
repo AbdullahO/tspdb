@@ -36,6 +36,9 @@ class SVDModel(object):
         self.TimesUpdated = TimesUpdated
         self.TimesReconstructed = TimesReconstructed
         self.kSingularValues = kSingularValuesToKeep
+        if kSingularValuesToKeep is not None:
+            if self.kSingularValues> min(M,N-1):
+                self.kSingularValues = min(M,N-1)
         self.svdMethod = svdMethod
         self.norm_mean = norm_mean
         self.norm_std = norm_std

@@ -72,7 +72,7 @@ def load_pindex_u(db_interface,index_name):
     agg_interval = float(agg_interval)
     # ------------------------------------------------------
     no_ts = len(value_columns)
-    last_index = index_ts_mapper(start_time, agg_interval, last) + 1
+    last_index = (index_ts_mapper(start_time, agg_interval, last) + 1)
     if last_index - MUpdateIndex//no_ts <= 5*L:
         print(L, last_index, MUpdateIndex)
         print('nothing major to update')
@@ -85,7 +85,7 @@ def load_pindex_u(db_interface,index_name):
                 aggregation_method=aggregation_method, agg_interval=agg_interval, time_series_table_name=time_series_table_name, 
                 time_column = time_column, value_column = value_columns ,persist_L = persist_l,col_to_row_ratio = col_to_row_ratio, fill_in_missing = fill_in_missing, p =p)
     
-    model_no = int(max((last_index - 1) / (T / 2) - 1, 0))
+    model_no = int(max((last_index*no_ts - 1) / (T / 2) - 1, 0))
     last_model_no = int(max((MUpdateIndex - 1) / (T / 2) - 1, 0))
     model_start = last_model_no*T/2
     print(model_no, last_model_no, ReconIndex, model_start, last_index)
@@ -93,7 +93,7 @@ def load_pindex_u(db_interface,index_name):
     new_points_ratio = (last_index*no_ts - ReconIndex)/(ReconIndex - model_start)
     print(new_points_ratio)
     
-    if new_points_ratio < gamma and model_no <= last_model_no and last_index%(T//2) != 0:
+    if new_points_ratio < gamma and model_no <= last_model_no and (last_index*no_ts)%(T//2) != 0:
         print('marginal update')
         start = (MUpdateIndex)//TSPD.no_ts
         end = (TimeSeriesIndex - 1)//TSPD.no_ts
@@ -397,8 +397,7 @@ class TSPI(object):
         # Update mean model
         self.ts_model.update_model(NewEntries)
         
-        if self.k is None:
-            self.k = self.ts_model.kSingularValuesToKeep
+        self.k = self.ts_model.kSingularValuesToKeep
         # Determine updated models
         
         models = {k: self.ts_model.models[k] for k in self.ts_model.models if self.ts_model.models[k].updated}

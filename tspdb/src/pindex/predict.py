@@ -340,9 +340,7 @@ def _get_imputation_range(index_name, table_name, value_column, index_col, inter
         V = interface.get_V_row(index_name + '_v', [tscol1, tscol2], k,value_index,
                                          [m1, m2 + 1],
                                          return_modelno=True)
-        print(m1,m2)
         for m in range(m1, m2 + 1 + (m2 < last_model - 1)):
-            print(m)
             mat = np.dot(U[U[:, 0] == m, 1:] * S[m - m1, 1:], V[V[:, 0] == m, 1:].T)
             start = start1//no_ts + int(T_e/2)*(m-m1)
             N = N1
@@ -432,7 +430,6 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
     # get coefficients
 
     coeffs = np.array(interface.get_coeff(index_name + '_c_view', averaging))
-    print(len(coeffs))
     coeffs_ts = coeffs[-no_ts:]
     coeffs = coeffs[:-no_ts]
     no_coeff = len(coeffs)
