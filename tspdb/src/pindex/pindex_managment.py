@@ -560,7 +560,7 @@ class TSPI(object):
             
         # populate U_table data
         U_table = np.zeros([(len(models) - 1) * N + models[last_model].N, 1 + 2*tsmm.kSingularValuesToKeep])
-        for i, m in models.items():
+        for i, m in sorted(models.items()):
             j = i - first_model
             if i == last_model:
                 U_table[j * N:, 1:1 + tsmm.kSingularValuesToKeep] = m.Uk
@@ -584,7 +584,7 @@ class TSPI(object):
 
         # populate V_table data
         V_table = np.zeros([(len(models) - 1) * M + models[last_model].M, 1 + 2*tsmm.kSingularValuesToKeep])
-        for i, m in models.items():
+        for i, m in sorted(models.items()):
             j = i - first_model
             if i == last_model:
                 V_table[j * M:, 1:1 + tsmm.kSingularValuesToKeep] = m.Vk
@@ -610,7 +610,7 @@ class TSPI(object):
 
         # populate s_table data 
         s_table = np.zeros([len(models), 1 + 2*tsmm.kSingularValuesToKeep])
-        for i, m in models.items():
+        for i, m in sorted(models.items()):
             j = i - first_model
             s_table[j, 1:tsmm.kSingularValuesToKeep + 1] = m.sk
             s_table[j, tsmm.kSingularValuesToKeep + 1:tsmm.kSingularValuesToKeep*2 + 1] = m.skw
@@ -628,7 +628,7 @@ class TSPI(object):
         w_f = N - 1
         w_l = len(models[last_model].weights)
         c_table = np.zeros([(len(models)) * (w_f+self.no_ts), 3])
-        for i, m in models.items():
+        for i in sorted(models.items()):
             for ts in range(self.no_ts):
                 bias = (-m.weights.sum() +1)*m.norm_mean[ts]
                 c_table[id_c, :] = [i, -ts-1, bias]
@@ -656,7 +656,7 @@ class TSPI(object):
 
         # populate m_table data 
         m_table = np.zeros([len(models), 7 + 5], 'object')
-        for i, m in models.items():
+        for i, m in sorted(models.items()):
             m_table[i - first_model, :] = [i, m.N, m.M, m.start, m.M * m.N, m.TimesUpdated, m.TimesReconstructed, self._array_str(list(m.imputation_model_score)), self._array_str(list(m.forecast_model_score)), self._array_str(list(m.forecast_model_score_test)), self._array_str(list(m.norm_mean)), self._array_str(list(m.norm_std))]
             #for ts in range(self.no_ts):
             #        m_table[i - first_model,7+5*ts:7+5*(ts+1)] = [ m.imputation_model_score[ts], m.forecast_model_score[ts], np.nan, m.norm_mean[ts], m.norm_std[ts]]
