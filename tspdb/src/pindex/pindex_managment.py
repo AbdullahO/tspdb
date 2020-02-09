@@ -628,7 +628,7 @@ class TSPI(object):
         w_f = N - 1
         w_l = len(models[last_model].weights)
         c_table = np.zeros([(len(models)) * (w_f+self.no_ts), 3])
-        for i in sorted(models.items()):
+        for i,m in sorted(models.items()):
             for ts in range(self.no_ts):
                 bias = (-m.weights.sum() +1)*m.norm_mean[ts]
                 c_table[id_c, :] = [i, -ts-1, bias]
