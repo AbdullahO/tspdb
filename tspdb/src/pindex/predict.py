@@ -85,6 +85,7 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
             
     # if all points are in the future, use _get_forecast_range 
     if t1 > (MUpdateIndex - 1)//no_ts:
+        print('forecasting')
         if not uq: return _get_forecast_range(index_name,table_name, value_column, index_col, interface, t1,t2, MUpdateIndex,L,k,T,last_model,interval, start_ts, last_TS_seen,no_ts,value_index, projected = projected, p = p)
         
         else:
@@ -428,7 +429,7 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
     #1- Replace last_ts with the last time stamp seen 
     ########################################
     # get coefficients
-
+    print('get_forecast_range')
     coeffs = np.array(interface.get_coeff(index_name + '_c_view', averaging))
     coeffs_ts = coeffs[-no_ts:]
     coeffs = coeffs[:-no_ts]
@@ -453,14 +454,17 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
             if not isinstance(last_TS_seen, (int, np.integer)):
                 last_TS_seen = index_ts_mapper(start_ts, agg_interval, last_TS_seen)
             last_TS_seen+=1
+            print(t1,t2, last_TS_seen)
+            
             t1_ = min(t1, last_TS_seen)
             t2_ = min(t2, last_TS_seen)
             end = index_ts_inv_mapper(start_ts, agg_interval, t2_ - 1 )
-            start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff  )
+            start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff -1  )
+            print(start, end)
             obs = interface.get_time_series(table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
-            
             output = np.zeros([t2 - t1_ + 1 ])
-            obs = np.array(obs)[:,0]
+            obs = np.array(obs)[-no_coeff:,0]
+            print(len(obs[:]), no_coeff)
             # Fill using fill_method
             if p <1:
                 obs = np.array(pd.DataFrame(obs).fillna(value = 0).values[:,0])
@@ -471,7 +475,7 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
             if variance:
                 obs = obs **2
             observations = np.zeros([t2 - t1_ + 1 + no_coeff])
-            observations[:len(obs)] = obs
+            observations[:no_coeff] = obs
             
             for i in range(0, t2 + 1 - t1_): 
                     if i  < len(obs):

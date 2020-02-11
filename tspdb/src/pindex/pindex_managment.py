@@ -59,6 +59,8 @@ def load_pindex_u(db_interface,index_name):
                                                               'last_TS_seen', 'p' ,'time_series_table_name', 'indexed_column','time_column'])
     
     T, T0, k, gamma, direct_var, k_var, T_var, SSVT, start_time, aggregation_method, agg_interval, persist_l, col_to_row_ratio, L, ReconIndex, MUpdateIndex, TimeSeriesIndex , p= meta_inf[0][:-3]
+    L_m = db_interface.query_table(index_name + "_m", ['L'], 'modelno =0')[0][0]
+    
     time_series_table_name, value_column, time_column = meta_inf[0][-3:]
     last = get_bound_time(db_interface, time_series_table_name, time_column ,'max')
     value_columns = value_column.split(',')
@@ -73,7 +75,7 @@ def load_pindex_u(db_interface,index_name):
     # ------------------------------------------------------
     no_ts = len(value_columns)
     last_index = (index_ts_mapper(start_time, agg_interval, last) + 1)
-    if last_index - MUpdateIndex//no_ts <= 5*L:
+    if last_index - MUpdateIndex//no_ts <= 5*L_m:
         print(L, last_index, MUpdateIndex)
         print('nothing major to update')
         return False
