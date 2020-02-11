@@ -98,7 +98,7 @@ class SqlImplementation(Interface):
                 result = connection.execute(sql, (start_ts_str,start.strftime('%Y-%m-%d %H:%M:%S'),)).fetchall()
             else:
                 generate_series_sql = "with intervals as (select n as start_time,n+'"+interval_str+"'::interval as end_time from generate_series(%s::timestamp, %s::timestamp,'"+interval_str+"'::interval) as n )"
-                select_sql = "select "+queried_columns+ " from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > %s and  f.start_time < %s group by f.start_time, f.end_time order by f.start_time"
+                select_sql = "select "+queried_columns+ " from "+name+" m right join intervals f on m."+index_column+" >= f.start_time and m."+index_column+" < f.end_time where f.end_time > %s and  f.start_time <= %s group by f.start_time, f.end_time order by f.start_time"
                 if Desc: select_sql += 'DESC'
                 sql = generate_series_sql+ select_sql
                 result = connection.execute(sql, (start_ts_str,end.strftime('%Y-%m-%d %H:%M:%S'), start.strftime('%Y-%m-%d %H:%M:%S'), end.strftime('%Y-%m-%d %H:%M:%S'),)).fetchall()

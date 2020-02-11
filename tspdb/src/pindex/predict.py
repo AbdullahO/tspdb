@@ -458,8 +458,8 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
             
             t1_ = min(t1, last_TS_seen)
             t2_ = min(t2, last_TS_seen)
-            end = index_ts_inv_mapper(start_ts, agg_interval, t2_ - 1 )
-            start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff -1  )
+            end = index_ts_inv_mapper(start_ts, agg_interval, t1_ - 1 )
+            start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff  )
             print(start, end)
             obs = interface.get_time_series(table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
             output = np.zeros([t2 - t1_ + 1 ])
