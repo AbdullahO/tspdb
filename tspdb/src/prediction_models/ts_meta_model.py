@@ -72,7 +72,8 @@ class TSMM(object):
 
     def update_model(self, NewEntries):
         """
-        This function takes a new set of entries and update the model accordingly.
+        This function takes a new se
+        t of entries and update the model accordingly.
         if the number of new entries means new model need to be bulit, this function segment the new entries into
         several entries and then feed them to the update_ts and fit function
         :param NewEntries: Entries to be included in the new model

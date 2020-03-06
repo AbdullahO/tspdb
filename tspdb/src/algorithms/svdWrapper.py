@@ -36,9 +36,13 @@ class SVDWrapper:
         # default is numpy's linear algebra library
         (self.U, self.s, self.V) = np.linalg.svd(self.matrix, full_matrices=False)
         
-        S = np.cumsum(self.s**2)
-        S = S/S[-1]
-        k = np.argmax(S>self.threshold)+1
+        # S = np.cumsum(self.s**2)
+        # S = S/S[-1]
+        # k = np.argmax(S>self.threshold)+1
+        b = self.N/self.M
+        omega = 0.56*b**3-0.95*b**2+1.43+1.82*b
+        thre = omega*np.median(self.s)
+        k = len(self.s[self.s>thre])
         # correct the dimensions of V
         self.V = self.V.T
         return k

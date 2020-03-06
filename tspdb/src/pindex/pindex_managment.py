@@ -352,13 +352,14 @@ class TSPI(object):
         # find starting and ending time 
         end_point = get_bound_time(self.db_interface, self.time_series_table_name, self.time_column, 'max')
         start_point = index_ts_inv_mapper(self.start_time, self.agg_interval, self.ts_model.TimeSeriesIndex)
-        # ------------------------------------------------------
-        # why np.array ? delete when value_column  check is implemeted
-        # ------------------------------------------------------
-        new_entries = np.array(self._get_range(start_point, end_point), dtype=np.float)
+        
+        # get new entries
+        new_entries = self._get_range(start_point, end_point)
         if len(new_entries) > 0:
             self.update_model(new_entries)
             self.write_model(True)
+        
+        # drop and create trigger
         self.db_interface.drop_trigger(self.time_series_table_name, self.index_name)
         if self.auto_update:
             self.db_interface.create_insert_trigger(self.time_series_table_name, self.index_name)
@@ -753,12 +754,12 @@ class TSPI(object):
         implement the same singles point query. use get from table function in interface
         """
 
-        return np.array([i for i in self.db_interface.get_time_series(self.time_series_table_name, t1, t2,
+        return pd.DataFrame(self.db_interface.get_time_series(self.time_series_table_name, t1, t2,
                                                                          value_column=','.join(self.value_column),
                                                                          index_column=self.time_column,
                                                                          aggregation_method=self.aggregation_method,
                                                                          interval=self.agg_interval,
-                                                                         start_ts=self.start_time)])
+                                                                         start_ts=self.start_time)).values
 
 
     def _load_models_from_db(self, tsmm):

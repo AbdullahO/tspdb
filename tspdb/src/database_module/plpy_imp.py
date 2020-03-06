@@ -64,8 +64,8 @@ class plpyimp(Interface):
                 else:
                     sql = 'Select ' + ','.join(value_columns_) + " from  " + name + " where " + index_column + " >= "+str(start)+" and " + index_column + " <= "+str(end)+" order by " + index_column + ' Desc'
                 result = self.engine.execute(sql)
-            result = [row for row in result]
-            return [[row[ci] for ci in value_columns] for row in result]
+           
+            return pd.DataFrame((b for b in result)).values 
 
         elif  isinstance(start, (pd.Timestamp)) and (isinstance(end, (pd.Timestamp)) or end is None):
         
@@ -100,7 +100,7 @@ class plpyimp(Interface):
                 sql = generate_series_sql+ select_sql
                 result = self.engine.execute(sql)
                 result = [row for row in result]
-                return [[row['ag_'+ci] for ci in value_columns] for row in result]
+                return  pd.DataFrame((b for b in result)).values #list((row['ag_'+ci] for ci in value_columns] for row in result))
         else:
              raise Exception('start and end values must either be integers or pd.timestamp')
     
