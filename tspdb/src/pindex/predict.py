@@ -70,6 +70,14 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
     interval = float(interval)
     t1 = index_ts_mapper(start_ts, interval, t1)
     t2 = index_ts_mapper(start_ts, interval, t2)
+    
+    if MUpdateIndex == 0:
+        last_TS_seen = get_bound_time(interface, table_name, index_col, 'max')
+        obs = interface.get_time_series(table_name, start_ts, last_TS_seen, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = interval, aggregation_method = 'average')
+        if uq: return np.mean(obs)*np.ones(t2-t1+1), np.zeros(t2-t1+1)
+        else: return np.mean(obs)*np.ones(t2-t1+1)
+
+
     # check uq variables
     if uq:
 
@@ -177,17 +185,28 @@ def get_prediction(index_name, table_name, value_column, interface, t, uq = True
     # query pindex parameters
     
     T,T_var, L, k,k_var, L_var, last_model, MUpdateIndex,var_direct, interval, start_ts, last_TS_seen, last_TS_seen_var, index_col, value_columns, MUpdateIndex_var, p = interface.query_table( index_name+'_meta',['T','T_var', 'L', 'k','k_var','L_var', 'no_submodels', 'last_TS_inc', 'var_direct_method', 'agg_interval','start_time', "last_TS_seen", "last_TS_seen_var", "time_column","indexed_column",'last_TS_inc_var','p'])[0]
+    ############ Fix queried values ####################
     last_model -= 1
     value_columns = value_columns.split(',')
     no_ts = len(value_columns)
-    try: value_index = value_columns.index(value_column)
-    except: raise Exception('The value column selected is not indexed by the chosen pindex')
     
     if not isinstance(t, (int, np.integer)):
         t = pd.to_datetime(t)
         start_ts = pd.to_datetime(start_ts)
-    
     interval = float(interval)
+    ###################################################
+    # Check 1: value colmn is indexed 
+
+    try: value_index = value_columns.index(value_column)
+    except: raise Exception('The value column selected is not indexed by the chosen pindex')
+    
+    # if the model is not fit, return the average
+    if MUpdateIndex == 0:
+        last_TS_seen = get_bound_time(interface, table_name, index_col, 'max')
+        obs = interface.get_time_series(table_name, start_ts, last_TS_seen, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = interval, aggregation_method = 'average')
+        if uq: return np.mean(obs), 0
+        else: return np.mean(obs)
+
     t = index_ts_mapper(start_ts, interval, t)
     if uq:
         
@@ -429,7 +448,6 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
     #1- Replace last_ts with the last time stamp seen 
     ########################################
     # get coefficients
-    print('get_forecast_range')
     coeffs = np.array(interface.get_coeff(index_name + '_c_view', averaging))
     coeffs_ts = coeffs[-no_ts:]
     coeffs = coeffs[:-no_ts]
@@ -461,7 +479,7 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
             end = index_ts_inv_mapper(start_ts, agg_interval, t1_ - 1 )
             start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff  )
             print(start, end)
-            obs = interface.get_time_series(table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
+            obs = interface.get_time_series(table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method =  averaging)
             output = np.zeros([t2 - t1_ + 1 ])
             obs = np.array(obs)[-no_coeff:,0]
             print(len(obs[:]), no_coeff)
@@ -626,7 +644,7 @@ def forecast_next(index_name,table_name, value_column, index_col, interface, ave
     end = index_ts_inv_mapper(start_ts, agg_interval, end_index)
     start = index_ts_inv_mapper(start_ts, agg_interval, end_index-no_coeff )
     # the forecast should always start at the last point
-    obs = interface.get_time_series( table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = 'average')
+    obs = interface.get_time_series( table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method = averaging)
     output = np.zeros(ahead+no_coeff)
     output[:no_coeff] = np.array(obs)[:,0]
     for i in range(0, ahead):

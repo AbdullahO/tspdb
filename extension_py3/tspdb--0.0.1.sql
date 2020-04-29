@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS tspdb.pindices_stats (
 
 
 
-CREATE or REPLACE FUNCTION create_pindex (table_name text, time_column text, value_column text[], index_name text, fill_in_missing boolean DEFAULT true,normalize boolean DEFAULT true,auto_update boolean DEFAULT true, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT Null , k_var int DEFAULT 1, "T" int DEFAULT 2500000, "T0" int DEFAULT 1000,var_direct boolean DEFAULT true,gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 10, agg_interval numeric DEFAULT NULL, "L" int DEFAULT 0 )
+CREATE or REPLACE FUNCTION create_pindex (table_name text, time_column text, value_column text[], index_name text, fill_in_missing boolean DEFAULT true,normalize boolean DEFAULT true,auto_update boolean DEFAULT true, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT Null , k_var int DEFAULT 1, "T" int DEFAULT 2500000, "T0" int DEFAULT 1000,var_direct boolean DEFAULT true,gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 2, agg_interval numeric DEFAULT NULL, "L" int DEFAULT 0 )
 RETURNS void AS $$
 from tspdb.src.pindex.predict import get_prediction_range, get_prediction
 from tspdb.src.pindex.pindex_managment import TSPI
@@ -47,6 +47,28 @@ else:
 
 # Build index 
 
+if L == 0:
+  TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, col_to_row_ratio = col_to_row_ratio, interface= plpyimp(plpy) ,time_column = time_column, value_column = value_column, time_series_table_name = table_name, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval, normalize = normalize, auto_update = auto_update, fill_in_missing = fill_in_missing)
+else:
+  TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, L = L, interface= plpyimp(plpy) ,time_column = time_column, value_column =value_column , time_series_table_name = table_name, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval, normalize = normalize, auto_update = auto_update, fill_in_missing = fill_in_missing)
+plpy.notice('createing pindex: T = %s, L =%s'%(TSPD.ts_model.T,TSPD.ts_model.L,))
+TSPD.create_index()
+
+$$ LANGUAGE plpython3u;
+
+CREATE or REPLACE FUNCTION create_pindex (table_name text, time_column text, value_column text[], index_name text, fill_in_missing boolean DEFAULT true,normalize boolean DEFAULT true,auto_update boolean DEFAULT true, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT Null , k_var int DEFAULT 1, t int DEFAULT 2500000,var_direct boolean DEFAULT true,t0 int DEFAULT 1000, gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 2, agg_interval numeric DEFAULT NULL, L int DEFAULT 0 )
+RETURNS void AS $$
+from tspdb.src.pindex.predict import get_prediction_range, get_prediction
+from tspdb.src.pindex.pindex_managment import TSPI
+
+if timescale:
+    from tspdb.src.database_module.plpy_imp_tsdb import plpyimp
+else:
+    from tspdb.src.database_module.plpy_imp import plpyimp
+#check if table is ts and columns are of appropriate type 
+
+# Build index 
+L,T, T0 = l,t, t0
 if L == 0:
   TSPD = TSPI(T = T,T_var = T, rank = k, rank_var =  k_var, gamma = gamma, col_to_row_ratio = col_to_row_ratio, interface= plpyimp(plpy) ,time_column = time_column, value_column = value_column, time_series_table_name = table_name, recreate = True, direct_var = var_direct, index_name = index_name, agg_interval = agg_interval, normalize = normalize, auto_update = auto_update, fill_in_missing = fill_in_missing)
 else:
