@@ -71,6 +71,7 @@ def get_prediction_range( index_name, table_name, value_column, interface, t1,t2
     t1 = index_ts_mapper(start_ts, interval, t1)
     t2 = index_ts_mapper(start_ts, interval, t2)
     
+    # if the models is not fit, return the mean
     if MUpdateIndex == 0:
         last_TS_seen = get_bound_time(interface, table_name, index_col, 'max')
         obs = interface.get_time_series(table_name, start_ts, last_TS_seen, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = interval, aggregation_method = 'average')
@@ -472,17 +473,14 @@ def _get_forecast_range(index_name,table_name, value_column, index_col, interfac
             if not isinstance(last_TS_seen, (int, np.integer)):
                 last_TS_seen = index_ts_mapper(start_ts, agg_interval, last_TS_seen)
             last_TS_seen+=1
-            print(t1,t2, last_TS_seen)
             
             t1_ = min(t1, last_TS_seen)
             t2_ = min(t2, last_TS_seen)
             end = index_ts_inv_mapper(start_ts, agg_interval, t1_ - 1 )
             start = index_ts_inv_mapper(start_ts, agg_interval, t1_ - no_coeff  )
-            print(start, end)
             obs = interface.get_time_series(table_name, start, end, start_ts = start_ts,  value_column=value_column, index_column= index_col, Desc=False, interval = agg_interval, aggregation_method =  averaging)
             output = np.zeros([t2 - t1_ + 1 ])
             obs = np.array(obs)[-no_coeff:,0]
-            print(len(obs[:]), no_coeff)
             # Fill using fill_method
             if p <1:
                 obs = np.array(pd.DataFrame(obs).fillna(value = 0).values[:,0])
