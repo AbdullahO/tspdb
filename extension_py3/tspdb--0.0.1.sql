@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS tspdb.pindices_stats (
 
 
 
+
+
 CREATE or REPLACE FUNCTION create_pindex (table_name text, time_column text, value_column text[], index_name text, fill_in_missing boolean DEFAULT true,normalize boolean DEFAULT true,auto_update boolean DEFAULT true, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT Null , k_var int DEFAULT 1, t int DEFAULT 2500000, t0 int DEFAULT 1000,var_direct boolean DEFAULT true,gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 2, agg_interval numeric DEFAULT NULL, l int DEFAULT 0 )
 RETURNS void AS $$
 from tspdb.src.pindex.predict import get_prediction_range, get_prediction
@@ -204,4 +206,21 @@ RETURNS setof record LANGUAGE SQL AS $$
 select * from tspdb.pindices_stats;
 $$;
 
+
+CREATE or REPLACE FUNCTION get_lowerbound(table_name text, value_column text, time_column text, number_of_observations int DEFAULT 1000, samples int DEFAULT 100, k int DEFAULT 3, discretization_method text DEFAULT 'quantization')
+RETURNS  numeric LANGUAGE plpython3u AS $$
+import pandas as pd
+import numpy as np
+from tspdb.src.tslb.tslb import get_lower_bound
+sql_query = "Select " + value_column+ " from " +table_name+ " order by "+ time_column +" Desc limit %s"%number_of_observations
+result = plpy.execute(sql_query)
+result = [row for row in result][::-1]
+df = pd.DataFrame(result)
+nan_sum = np.sum(pd.isna(df[value_column]))
+if nan_sum>0:
+  plpy.notice('THe lower bound cannot be estimated if there are missing values. The column you selected has %s NaNs in the last %s observations'%(nan_sum,number_of_observations))
+  return np.nan
+lb = get_lower_bound(df[value_column], samples=samples, k=k, discretization_method=discretization_method)
+return lb
+$$;
 

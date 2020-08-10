@@ -124,6 +124,6 @@ def create_pindex_test(interface,table_name, T,T_var, k ,k_var, direct_var,value
 	gamma = 0.5
 	if index_name is None: index_name = 'pindex'
 	value_column = ','.join(value_column)
-	interface.engine.execute('''SELECT create_pindex('%s','%s','{%s}','%s', "T" => %s,"t_var" =>%s, k => %s, k_var => %s, agg_interval => %s, var_direct => %s, col_to_row_ratio => %s)'''%(table_name,time_column, value_column, index_name, T, T_var, k,k_var, agg_interval, direct_var, col_to_row_ratio))
+	interface.engine.execute('''SELECT create_pindex('%s','%s','{%s}','%s', T => %s,t_var =>%s, k => %s, k_var => %s, agg_interval => %s, var_direct => %s, col_to_row_ratio => %s)'''%(table_name,time_column, value_column, index_name, T, T_var, k,k_var, agg_interval, direct_var, col_to_row_ratio))
 
 
