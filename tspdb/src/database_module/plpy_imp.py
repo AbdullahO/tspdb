@@ -669,7 +669,7 @@ class plpyimp(Interface):
 
 
     def drop_trigger(self, table_name, index_name):
-        query = "DROP TRIGGER if EXISTS tspdb_update_pindex_tg_%s on "%index_name[6:] + table_name 
+        query = "DROP TRIGGER if EXISTS tspdb_update_pindex_tg_%s on "%index_name[:] + table_name 
         self.engine.execute(query)
 
 

@@ -28,10 +28,19 @@ def delete_pindex(db_interface, index_name, schema='tspdb'):
     schema: string 
         name of the tspdb schema
     """
-
     # suffixes of the pindex tables
     suffix = ['u', 'v', 's', 'm', 'c', 'meta']
     index_name_ = schema + '.' + index_name
+    table_name = None
+    try:
+        meta_table = index_name_ + "_meta"
+        # get time series table name
+        table_name = db_interface.query_table(meta_table, columns_queried=['time_series_table_name'])[0][0]
+    except: 
+        pass
+    index_name_no_schema = index_name.split('.')[-1]
+    if table_name is not None:
+        db_interface.drop_trigger(table_name,index_name_no_schema)
     # drop mean and variance tables 
     for suf in suffix:
         db_interface.drop_table(index_name_ + '_' + suf)
@@ -41,13 +50,7 @@ def delete_pindex(db_interface, index_name, schema='tspdb'):
     db_interface.delete('tspdb.pindices', "index_name = '" + str(index_name) + "';")
     db_interface.delete('tspdb.pindices_columns', "index_name = '" + str(index_name) + "';")
     db_interface.delete('tspdb.pindices_stats', "index_name = '" + str(index_name) + "';")
-    try:
-        meta_table = index_name_ + "_meta"
-        # get time series table name
-        table_name = db_interface.query_table(meta_table, columns_queried=['time_series_table_name'])[0][0]
-        db_interface.drop_trigger(table_name,index_name)
-    except: 
-        pass
+
 
 def load_pindex_u(db_interface,index_name):
     t = time.time()
@@ -265,7 +268,6 @@ class TSPI(object):
             self.write_model(True)
         
         # drop and create trigger
-        self.db_interface.drop_trigger(self.time_series_table_name, self.index_name)
         if self.auto_update:
             self.db_interface.create_insert_trigger(self.time_series_table_name, self.index_name)
 
