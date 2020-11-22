@@ -210,14 +210,19 @@ class TSMM(object):
                 start = 0
 
             if self.persist_L: N = self.L
-            else: N = int(np.sqrt(initEntries.size / (self.col_to_row_ratio)))
-
+            else: 
+                N = int(np.sqrt(initEntries.size / (self.col_to_row_ratio)))
+                if N >  initEntries.shape[0]:
+                    N = initEntries.shape[0]
             M = int(initEntries.size / N)
+            if M < self.no_ts:
+                raise Exception ('Number of columns in the matrix (%s) is less than the number of time series (%s)' % (M, self.no_ts))
             if M%self.no_ts != 0:
                 M -= M%self.no_ts
 
             M_ts = M//self.no_ts
             inc_obs = initEntries[:M_ts*N,:]
+            
             if self.normalize:
                 scaler = StandardScaler()
                 inc_obs = scaler.fit_transform(inc_obs)

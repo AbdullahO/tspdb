@@ -78,7 +78,7 @@ else:
   return prediction, prediction-interval, prediction+ interval
 $$ LANGUAGE plpython3u;
 
-CREATE or REPLACE FUNCTION predict (table_name text, value_column text, t timestamp,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,projected boolean DEFAULT false,  OUT prediction numeric, OUT LB numeric,OUT UB numeric)
+CREATE or REPLACE FUNCTION predict (table_name text, value_column text, t text,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,projected boolean DEFAULT false,  OUT prediction numeric, OUT LB numeric,OUT UB numeric)
 AS $$
 
 from tspdb.src.pindex.predict import get_prediction
@@ -95,7 +95,7 @@ else:
   return prediction, prediction-interval, prediction+ interval
 $$ LANGUAGE plpython3u;
 
-CREATE or REPLACE FUNCTION predict_range (table_name text, value_column text,  t1 int, t2 int,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95, projected boolean DEFAULT false,OUT prediction numeric, OUT LB numeric,OUT UB numeric)
+CREATE or REPLACE FUNCTION predict (table_name text, value_column text,  t1 int, t2 int,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95, projected boolean DEFAULT false,OUT prediction numeric, OUT LB numeric,OUT UB numeric)
 RETURNS SETOF record AS $$
 from tspdb.src.pindex.predict import get_prediction_range
 from tspdb.src.database_module.plpy_imp import plpyimp
@@ -111,7 +111,7 @@ else:
   return zip(prediction, prediction-interval, prediction+ interval)
 $$ LANGUAGE plpython3u;
 
-CREATE or REPLACE FUNCTION predict_range (table_name text, value_column text,  t1 timestamp, t2 timestamp,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,projected boolean DEFAULT false, OUT prediction numeric, OUT LB numeric,OUT UB numeric)
+CREATE or REPLACE FUNCTION predict (table_name text, value_column text,  t1 text, t2 text,  index_name text, uq boolean DEFAULT true, uq_method text DEFAULT 'Gaussian', c double precision DEFAULT 95,projected boolean DEFAULT false, OUT prediction numeric, OUT LB numeric,OUT UB numeric)
 RETURNS SETOF record AS $$
 from tspdb.src.pindex.predict import get_prediction_range
 from tspdb.src.database_module.plpy_imp import plpyimp
