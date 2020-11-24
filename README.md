@@ -67,16 +67,16 @@ The prediction index also support forecasting queries using the same function. F
 ```sql
 SELECT * FROM predict('mixturets2','ts_7',100010,'pindex1');
 ```
-In a similar fashion, you can execute range predictive queries using `predict_range()`. for example, we can *impute* the first hundered points of `ts_7` using:
+In a similar fashion, you can execute range predictive queries using `predict()`. for example, we can *impute* the first hundered points of `ts_7` using:
 
 ```sql
-SELECT * FROM predict_range('mixturets2','ts_7',0,100,'pindex1');
+SELECT * FROM predict('mixturets2','ts_7',0,100,'pindex1');
 ```
 
 or *forecast* the next 10 points using:
 
 ```sql
-SELECT * FROM predict_range('mixturets2','ts_7',100001,100010,'pindex1');
+SELECT * FROM predict('mixturets2','ts_7',100001,100010,'pindex1');
 ```
 
 For further examples, check the python notebook examples  [here](https://github.com/AbdullahO/tspdb/blob/master\notebook_examples)
