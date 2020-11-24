@@ -13,6 +13,7 @@ import time
 import pickle
 from sqlalchemy.types import *
 from tspdb.src.tsUtils import unnormalize 
+
 def delete_pindex(db_interface, index_name, schema='tspdb'):
     """
     Delete Pindex index_name from database.
@@ -263,6 +264,7 @@ class TSPI(object):
         
         # get new entries
         new_entries = self._get_range(start_point, end_point)
+        new_entries = new_entries.astype('float')
         if len(new_entries) > 0:
             self.update_model(new_entries)
             self.write_model(True)
