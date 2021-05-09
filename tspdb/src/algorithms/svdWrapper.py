@@ -42,7 +42,7 @@ class SVDWrapper:
         b = self.N/self.M
         omega = 0.56*b**3-0.95*b**2+1.43+1.82*b
         thre = omega*np.median(self.s)
-        k = len(self.s[self.s>thre])
+        k = max(len(self.s[self.s>thre]), 1)
         # correct the dimensions of V
         self.V = self.V.T
         return k
@@ -81,35 +81,6 @@ class SVDWrapper:
             return tsUtils.matrixFromSVD(sk, Uk, Vk)
         else:
             return (sk, Uk, Vk)
-
-
-
-# ##################################################
-# # Test code
-# N = 30
-# T = 50
-# data = np.random.normal(0.0, 10.0, [N,T])
-
-# mod1 = SVDWrapper(data, method='numpy')
-# mod1.decompose()
-
-# print(mod1.U)
-# print("--")
-# print(mod1.V)
-# print("--")
-# print(mod1.s)
-# print("--")
-
-# recon1 = mod1.reconstructMatrix(N)
-# print(np.mean(data - recon1))
-# recon1 = mod1.reconstructMatrix(int(N/2))
-# print(np.mean(data - recon1))
-# print("--")
-# print("--")
-
-
-# print(mod1.decomposeTopK(10))
-# print(mod2.decomposeTopK(10))
 
 
 
