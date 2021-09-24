@@ -33,7 +33,7 @@ psql -U postgres
 ```sql				
 CREATE EXTENSION plpython3u;
 ```
-d- If you see  "CREATE EXTENSION" then the extension is working properly.
+3- If you see  "CREATE EXTENSION" then the extension is working properly.
 
 
 ### Installing tspDB
@@ -114,7 +114,7 @@ CREATE EXTENSION tspdb;
 ### Prerequisites (PostgreSQL and plpython)
 **(start from here, the later stages assume that you downloaded postgres this way):**
 
-1- Install postgreSQL 12 from [here](https://www.enterprisedb.com/thank-you-downloading-postgresql?anid=1257093)
+1- Install postgreSQL 12 from [here](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
 
 2- After the installation is done, we need to download the Language Pack. To do that, run Stack Builder (which was installed with PostgreSQL) and follow these steps: 
 		
@@ -144,7 +144,7 @@ Note that it will ask for your password, which you have set up during the instal
 ```sql			
 CREATE EXTENSION plpython3u;
 ```
-d- If you see  "CREATE EXTENSION" then this means it is working properly.
+4- If you see  "CREATE EXTENSION" then this means it is working properly.
 
 
 ### Installing tspdb
@@ -170,7 +170,7 @@ else, find the directory to the appropriate pip and run `pip install .`
 robocopy /s extension_py3  "c:\Program Files\PostgreSQL\12\share\extension"
 ```
 
-This step copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation. LEt's install the extension now through:
+This step copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation. Let's install the extension now through:
 
 5- Run postgreSQL using the command (specify the appropriate user name and database as needed):
 ```bash		
