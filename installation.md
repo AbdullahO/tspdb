@@ -33,7 +33,7 @@ psql -U postgres
 ```sql				
 CREATE EXTENSION plpython3u;
 ```
-3- If you see  "CREATE EXTENSION" then the extension is working properly.
+4- If you see  "CREATE EXTENSION" then the extension is working properly.
 
 
 ### Installing tspDB
@@ -236,7 +236,7 @@ sudo apt-get update
 
 - Install PostgreSQL 12 with plpython3 using the following command
 ```sh
-sudo apt-get install postgresql postgresql-plpython3-12 
+sudo apt-get install postgresql-12 postgresql-plpython3-12
 ```	
 2- Now let's test the plpython3 package.  Run  postgreSQL using the command (specify the appropriate user name and database as needed):
 ```sh		
@@ -251,7 +251,7 @@ CREATE EXTENSION plpython3u;
 3- install pip for the python version used by postgres
 ```sh		
 cd /usr/lib/python3.6
-sudo curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+sudo curl https://bootstrap.pypa.io/pip/3.6/get-pip.py -o get-pip.py
 sudo apt-get install python3-distutils
 sudo python3.6 get-pip.py 
 hash -d pip3
