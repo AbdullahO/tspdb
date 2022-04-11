@@ -28,7 +28,7 @@ The index is created via the function `create_pindex()`. which you can use as fo
 ``` sql
 select create_pindex('tablename','time_column_name','{"value_column_name"}','index_name')
 ``` 
-To get you familiar with tspDB capabilities, we provided a testing function that will create a set of time series tables in youe database. The test function will also create several prediction indices. Run the function from your postgres terminal
+To get you familiar with tspDB capabilities, we provided a testing function that will create a set of time series tables in your database. The test function will also create several prediction indices. Run the function from your postgres terminal
 ```sql
 SELECT test_tspdb();
 ```
@@ -51,7 +51,7 @@ we can see our newly created index by running `list_pindices` again:
 SELECT * FROM list_pindices();
 ```
 
-Let's now use that prediction index to prodice some *predictions*! let's for example predict at a time t that exists in the database. Effectively, we are *denoising* the existing observation or *imputing* a null observation. For example, at time 1, `ts_7` has a null value as  you can see by running:
+Let's now use that prediction index to produce some *predictions*! Let's for example predict at a time t that exists in the database. Effectively, we are *denoising* the existing observation or *imputing* a null observation. For example, at time 1, `ts_7` has a null value as  you can see by running:
 ```sql
 SELECT ts_7 FROM mixturets2 WHERE time = 1;
 ```
@@ -67,7 +67,7 @@ The prediction index also support forecasting queries using the same function. F
 ```sql
 SELECT * FROM predict('mixturets2','ts_7',100010,'pindex1');
 ```
-In a similar fashion, you can execute range predictive queries using `predict()`. for example, we can *impute* the first hundered points of `ts_7` using:
+In a similar fashion, you can execute range predictive queries using `predict()`. For example, we can *impute* the first hundered points of `ts_7` using:
 
 ```sql
 SELECT * FROM predict('mixturets2','ts_7',0,100,'pindex1');
@@ -79,7 +79,7 @@ or *forecast* the next 10 points using:
 SELECT * FROM predict('mixturets2','ts_7',100001,100010,'pindex1');
 ```
 
-For further examples, check the python notebook examples  [here](https://github.com/AbdullahO/tspdb/blob/master\notebook_examples)
+For further examples, check the python notebook examples  [here](https://github.com/AbdullahO/tspdb/blob/master/notebook_examples)
 
 ## Contributing 
 Please visit our [Github](https://github.com/AbdullahO/tspdb/blob/master/CONTRIBUTING.md) page for more information 
