@@ -9,11 +9,13 @@ If you have downloaded tspDB before and you want to upgrade to the current versi
 1. Install postgres.app (with PostgreSQL version 14) [here](https://postgresapp.com). It is preferred to follow the instructions therein, but we list them here for convenience. 
     -  Download postgres.app (with PostgreSQL version 14) from [here](https://postgresapp.com/downloads.html), move it to the application folder when prompted, and double click on it.
     - Click "Initialize" to create a new server.
-    - Configure your `$PATH` to use the included command line tools (optional):
-    ``` sh
+    - Configure your `$PATH` to use the included command line tools:
+    
+    ```
     sudo mkdir -p /etc/paths.d &&
     ```
-    ```sh
+    
+    ```
     echo /Applications/Postgres.app/Contents/Versions/latest/bin | sudo tee /etc/paths.d/postgresapp
     ```
 
@@ -26,13 +28,14 @@ If you have downloaded tspDB before and you want to upgrade to the current versi
 	
     - Run  PostgreSQL using the command (specify the appropriate user name and database as needed):
 
-         ```sh				
+         
+         ```				
          psql -U postgres
          ``` 
     
     - From inside PostgreSQL:
 
-         ```sql				
+         ```				
          CREATE EXTENSION plpython3u;
          ```
 
@@ -63,7 +66,7 @@ else, find the directory to the appropriate pip and run `pip install .`
 ```sh		
 cd extension_py3 && sudo make install
 ```
-This step uses pg_config to find out where PostgreSQL stores its extension files, if you have another installation of Postgres, this might not work. If it does not, copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation. 
+This step uses `pg_config` to find out where PostgreSQL stores its extension files, if you have another installation of Postgres, this might not work. If it does not, copy the .control and the .sql files into the share/extension directory of your PostgreSQL installation. 
 
 5- run PostgreSQL using the command (specify the appropriate user name and database as needed):
 ``` sh		
