@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS tspdb.pindices_stats (
 
 
 
-CREATE or REPLACE FUNCTION create_pindex (table_name text, time_column text, value_column text[], index_name text, fill_in_missing boolean DEFAULT true,normalize boolean DEFAULT true,auto_update boolean DEFAULT true, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT Null , k_var int DEFAULT 1, t int DEFAULT 2500000, t0 int DEFAULT 1000,var_direct boolean DEFAULT true,gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 10, agg_interval numeric DEFAULT NULL, l int DEFAULT 0 )
+CREATE or REPLACE FUNCTION create_pindex (table_name text, time_column text, value_column text[], index_name text, fill_in_missing boolean DEFAULT true,"normalize" boolean DEFAULT true,auto_update boolean DEFAULT true, timescale boolean DEFAULT false, t_var int DEFAULT -1 ,k int DEFAULT Null , k_var int DEFAULT 1, t int DEFAULT 2500000, t0 int DEFAULT 1000,var_direct boolean DEFAULT true,gamma numeric DEFAULT 0.5, col_to_row_ratio int DEFAULT 10, agg_interval numeric DEFAULT NULL, l int DEFAULT 0 )
 RETURNS void AS $$
 from tspdb.src.pindex.predict import get_prediction_range, get_prediction
 from tspdb.src.pindex.pindex_managment import TSPI
